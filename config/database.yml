@@ -1,0 +1,28 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  # For details on connection pooling, see Rails configuration guide
+  # https://guides.rubyonrails.org/configuring.html#database-pooling
+  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+
+# Local Docker Postgres (docker-compose.yml) — host port 5433 to avoid clashing
+# with other projects' Postgres on 5432.
+local: &local
+  <<: *default
+  host: <%= ENV.fetch("FATURAMENTO_DB_HOST", "localhost") %>
+  port: <%= ENV.fetch("FATURAMENTO_DB_PORT", 5433) %>
+  username: <%= ENV.fetch("FATURAMENTO_DB_USER", "faturamento") %>
+  password: <%= ENV.fetch("FATURAMENTO_DB_PASSWORD", "faturamento_dev_password") %>
+
+development:
+  <<: *local
+  database: faturamento_development
+
+test:
+  <<: *local
+  database: faturamento_test
+
+# Production (Railway): single database via DATABASE_URL
+production:
+  <<: *default
+  url: <%= ENV["DATABASE_URL"] %>
