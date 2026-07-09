@@ -4,11 +4,16 @@
 class Analytics
   MONTH_SQL = Arel.sql("date_trunc('month', negotiation_date)")
 
-  def initialize(period: nil, company_id: nil, salesperson_id: nil, partner_id: nil, as_of: Date.current)
-    @period = period
+  # Expostos para quem recorta outras fontes com os mesmos filtros (ex.: Situação
+  # aplica o mesmo recorte à carteira/inadimplência).
+  attr_reader :year, :months, :company_id, :salesperson_ids, :partner_ids
+
+  def initialize(year: nil, months: nil, company_id: nil, salesperson_ids: nil, partner_ids: nil, as_of: Date.current)
+    @year = presence(year)&.to_i
+    @months = int_list(months).select { |m| m.between?(1, 12) }
     @company_id = presence(company_id)
-    @salesperson_id = presence(salesperson_id)
-    @partner_id = presence(partner_id)
+    @salesperson_ids = int_list(salesperson_ids)
+    @partner_ids = int_list(partner_ids)
     @as_of = as_of
   end
 
@@ -99,9 +104,16 @@ class Analytics
     { months: months, series: series }
   end
 
+  # Scope de Invoice já recortado pelos filtros — público para quem precisa
+  # paginar/detalhar as notas (ex.: Devoluções), evitando duplicar o filtro.
+  def invoices
+    base
+  end
+
   # Opções para os filtros (dropdowns).
   def self.filter_options
     {
+      years: Invoice.distinct.pluck(Arel.sql("EXTRACT(YEAR FROM negotiation_date)::int")).compact.sort.reverse,
       companies: Company.order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } },
       salespeople: Salesperson.order(:nickname).pluck(:id, :nickname).map { |id, name| { id: id, name: name } },
       partners: Partner.order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } }
@@ -112,10 +124,11 @@ class Analytics
 
   def base
     scope = Invoice.all
-    scope = scope.in_period(@period) if @period
+    scope = scope.in_year(@year) if @year
+    scope = scope.in_months(@months) if @months.any?
     scope = scope.where(company_id: @company_id) if @company_id
-    scope = scope.where(salesperson_id: @salesperson_id) if @salesperson_id
-    scope = scope.where(partner_id: @partner_id) if @partner_id
+    scope = scope.where(salesperson_id: @salesperson_ids) if @salesperson_ids.any?
+    scope = scope.where(partner_id: @partner_ids) if @partner_ids.any?
     scope
   end
 
@@ -133,5 +146,10 @@ class Analytics
 
   def presence(value)
     value.presence
+  end
+
+  # Normaliza params de multi-seleção (string, array ou nil) em lista de inteiros.
+  def int_list(raw)
+    Array(raw).map(&:to_i).reject(&:zero?)
   end
 end

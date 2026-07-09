@@ -5,9 +5,10 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import KpiCard from '@/components/KpiCard.vue'
 import ChartCard from '@/components/ChartCard.vue'
 import BaseChart from '@/components/BaseChart.vue'
+import FilterBar from '@/components/FilterBar.vue'
 import { brl, brlCompact, dateBR } from '@/lib/format'
 import { PALETTE, GRID } from '@/lib/charts'
-import type { SituationRow, SituationTotals } from '@/types/models'
+import type { SituationRow, SituationTotals, AppliedFilters, FilterOptions } from '@/types/models'
 
 defineOptions({ layout: AppLayout })
 
@@ -17,6 +18,8 @@ const props = defineProps<{
   delinquencyReference: string | null
   hasDelinquency: boolean
   hasPortfolio: boolean
+  filters: AppliedFilters
+  filterOptions: FilterOptions
 }>()
 
 const chartOption = computed(() => {
@@ -59,6 +62,8 @@ const cols: { key: keyof SituationTotals; label: string; tone?: string }[] = [
         <span v-if="delinquencyReference" class="text-slate-400">· inadimplência até {{ dateBR(delinquencyReference) }}</span>
       </p>
     </div>
+
+    <FilterBar :filters="filters" :options="filterOptions" />
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <KpiCard label="Faturamento líquido" :value="brl(totals.liquido)" tone="positive" />
