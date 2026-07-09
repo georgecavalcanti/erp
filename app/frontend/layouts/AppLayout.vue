@@ -2,7 +2,7 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { Link, usePage, usePoll, router } from '@inertiajs/vue3'
 import FlashMessages from '@/components/FlashMessages.vue'
-import jattoLogo from '@/assets/jatto-logo.png'
+import jattoMark from '@/assets/jatto-mark.png'
 
 const page = usePage()
 const user = computed(() => page.props.auth?.user ?? null)
@@ -66,8 +66,8 @@ function isActive(item: { href: string; exact?: boolean }) {
     <div class="flex">
       <!-- Sidebar -->
       <aside class="fixed inset-y-0 left-0 hidden w-60 flex-col border-r border-slate-200 bg-white lg:flex">
-        <div class="flex h-16 items-center justify-center border-b border-slate-200 px-4">
-          <img :src="jattoLogo" alt="Jatto" class="h-14 object-contain" />
+        <div class="flex h-16 items-center justify-center border-b border-slate-200 px-4 py-3">
+          <img :src="jattoMark" alt="Jatto Distribuidora" class="h-10 w-auto object-contain" />
         </div>
         <nav class="flex-1 space-y-1 p-3">
           <Link
@@ -87,8 +87,8 @@ function isActive(item: { href: string; exact?: boolean }) {
            overflow-x-auto das tabelas conter o scroll (senão a página inteira rola). -->
       <div class="min-w-0 flex-1 lg:pl-60">
         <header class="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
-          <div class="lg:hidden">
-            <img :src="jattoLogo" alt="Jatto" class="h-11 object-contain" />
+          <div class="py-2 lg:hidden">
+            <img :src="jattoMark" alt="Jatto Distribuidora" class="h-8 w-auto object-contain" />
           </div>
           <div class="ml-auto flex items-center gap-4">
             <span
