@@ -33,12 +33,17 @@ module Sankhya
       @page_size = page_size
     end
 
+    # NUNOTAs lidos do ERP na última chamada a `call` — base do reconcile
+    # (o que existe local na janela e NÃO está aqui foi deletado/estornado no ERP).
+    attr_reader :seen_external_uids
+
     # dry_run: true -> não grava; retorna amostra do que gravaria.
     def call(dry_run: false)
       writer = Sankhya::InvoiceWriter.new
       imported = updated = skipped = seen = 0
       sample = []
       after = 0
+      @seen_external_uids = []
 
       loop do
         raw = @client.execute_query(page_sql(after: after, limit: @page_size))
@@ -48,6 +53,7 @@ module Sankhya
         # o TGFCAB é 1 por NUNOTA. Paginação decide fim pelo total BRUTO da página.
         rows = raw.uniq { |r| r["NUNOTA"] }
         rows.each do |row|
+          @seen_external_uids << row["NUNOTA"] # registra mesmo no dry_run e mesmo se o upsert pular
           attrs = map(row)
           if dry_run
             sample << attrs if sample.size < 5
