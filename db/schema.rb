@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_07_233002) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_08_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -101,7 +101,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_233002) do
     t.decimal "amount", precision: 15, scale: 2, default: "0.0", null: false
     t.integer "category", default: 0, null: false
     t.datetime "created_at", null: false
+    t.integer "days_overdue"
     t.date "due_date"
+    t.bigint "external_uid"
     t.bigint "import_batch_id"
     t.integer "invoice_number"
     t.text "observation"
@@ -110,9 +112,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_233002) do
     t.integer "protest_year"
     t.bigint "salesperson_id"
     t.string "salesperson_label", null: false
+    t.string "title_type"
     t.datetime "updated_at", null: false
     t.index ["category"], name: "index_overdue_titles_on_category"
     t.index ["due_date"], name: "index_overdue_titles_on_due_date"
+    t.index ["external_uid"], name: "index_overdue_titles_on_external_uid"
     t.index ["import_batch_id"], name: "index_overdue_titles_on_import_batch_id"
     t.index ["partner_id"], name: "index_overdue_titles_on_partner_id"
     t.index ["salesperson_id"], name: "index_overdue_titles_on_salesperson_id"

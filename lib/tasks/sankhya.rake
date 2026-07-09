@@ -115,7 +115,26 @@ namespace :sankhya do
     exit 1
   end
 
-  desc "Sync agendado (cron): incremental de notas + carteira do mês. Um comando só pro Railway."
+  desc "DRY-RUN inadimplência (títulos em aberto/vencidos, Boleto+PIX, Jatto) — só lê"
+  task inadimplencia_dry: :environment do
+    res = Sankhya::OverdueTitleSync.new.call(dry_run: true)
+    puts "DRY-RUN inadimplência: #{res[:rows]} títulos, R$ #{res[:total]} (#{res[:protested]} protestados). Amostra:"
+    res[:sample].each { |a| puts "  #{a.inspect}" }
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
+
+  desc "Sincroniza a inadimplência -> OverdueTitle + resumo Delinquency (snapshot)."
+  task inadimplencia: :environment do
+    res = Sankhya::OverdueTitleSync.new.call
+    puts "Inadimplência: #{res[:rows]} títulos, R$ #{res[:total]} (#{res[:protested]} protestados)."
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
+
+  desc "Sync agendado (cron): incremental de notas + carteira + inadimplência. Um comando só pro Railway."
   task sync: :environment do
     # Janela de 24h no incremental cobre o intervalo noturno (o cron roda só 8h-19h),
     # garantindo que mudanças entre a última rodada do dia e a 1ª do dia seguinte não escapem.
@@ -123,6 +142,8 @@ namespace :sankhya do
     puts "Notas: #{inv[:rows]} lidas → #{inv[:imported]} novas, #{inv[:updated]} atualizadas, #{inv[:skipped]} puladas."
     port = Sankhya::PendingOrderSync.new.call
     puts "Carteira: #{port[:rows]} pedidos, R$ #{port[:total]}."
+    inad = Sankhya::OverdueTitleSync.new.call
+    puts "Inadimplência: #{inad[:rows]} títulos, R$ #{inad[:total]} (#{inad[:protested]} protestados)."
   rescue Sankhya::Error => e
     warn "✗ #{e.class}: #{e.message}"
     exit 1
