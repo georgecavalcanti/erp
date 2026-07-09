@@ -1,3 +1,5 @@
+import type { LastSync } from './models'
+
 export type FlashData = {
   notice?: string
   alert?: string
@@ -11,4 +13,5 @@ export type AuthUser = {
 export type SharedProps = {
   auth: { user: AuthUser | null }
   flash: FlashData
+  lastSync: LastSync | null
 }

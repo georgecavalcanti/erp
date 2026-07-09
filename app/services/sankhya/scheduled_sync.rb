@@ -33,10 +33,24 @@ module Sankhya
         conn.execute("SELECT pg_advisory_unlock(#{LOCK_KEY})")
       end
 
+      record_run(results, errors)
       { skipped: false, results: results, errors: errors }
     end
 
     private
+
+    # Registra a execução (fonte do "último sync" exibido nos painéis). Nunca
+    # derruba o sync: um erro ao gravar o histórico é logado e ignorado.
+    def record_run(results, errors)
+      SyncRun.create!(
+        finished_at: Time.current,
+        status: errors.empty? ? "ok" : "partial",
+        summary: results.transform_values { |r| r.is_a?(Hash) ? r.except(:sample) : r },
+        error_messages: errors
+      )
+    rescue => e
+      Rails.logger.error("[ScheduledSync] falha ao registrar SyncRun: #{e.class} — #{e.message}")
+    end
 
     # Janela de 24h no incremental cobre o intervalo noturno, garantindo que
     # mudanças entre a última rodada de um dia e a 1ª do dia seguinte não escapem.

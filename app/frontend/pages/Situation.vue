@@ -123,17 +123,19 @@ const cols: { key: keyof SituationTotals; label: string; tone?: string }[] = [
         <table class="min-w-full divide-y divide-slate-200 text-sm">
           <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th class="px-4 py-3 font-medium">Vendedor</th>
-              <th v-for="c in cols" :key="c.key" class="px-4 py-3 text-right font-medium">{{ c.label }}</th>
+              <th class="sticky left-0 z-10 bg-slate-50 px-4 py-3 font-medium">Vendedor</th>
+              <th v-for="c in cols" :key="c.key" class="whitespace-nowrap px-3 py-3 text-right font-medium">{{ c.label }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            <tr v-for="row in rows" :key="row.name" class="hover:bg-slate-50">
-              <td class="px-4 py-2.5 font-medium text-slate-700">{{ row.name }}</td>
+            <tr v-for="row in rows" :key="row.name" class="bg-white hover:bg-slate-50">
+              <td class="sticky left-0 z-10 border-r border-slate-100 bg-inherit px-4 py-2.5 font-medium text-slate-700">
+                {{ row.name }}
+              </td>
               <td
                 v-for="c in cols"
                 :key="c.key"
-                class="px-4 py-2.5 text-right tabular-nums"
+                class="whitespace-nowrap px-3 py-2.5 text-right tabular-nums"
                 :class="row[c.key] !== 0 ? (c.tone ?? 'text-slate-600') : 'text-slate-300'"
               >
                 {{ brl(row[c.key] as number) }}
@@ -142,8 +144,10 @@ const cols: { key: keyof SituationTotals; label: string; tone?: string }[] = [
           </tbody>
           <tfoot class="border-t-2 border-slate-200 bg-slate-50 font-semibold text-slate-800">
             <tr>
-              <td class="px-4 py-3">Total</td>
-              <td v-for="c in cols" :key="c.key" class="px-4 py-3 text-right tabular-nums">{{ brl(totals[c.key] as number) }}</td>
+              <td class="sticky left-0 z-10 border-r border-slate-100 bg-slate-50 px-4 py-3">Total</td>
+              <td v-for="c in cols" :key="c.key" class="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                {{ brl(totals[c.key] as number) }}
+              </td>
             </tr>
           </tfoot>
         </table>
