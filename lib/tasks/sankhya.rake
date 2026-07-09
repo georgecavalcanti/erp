@@ -134,19 +134,87 @@ namespace :sankhya do
     exit 1
   end
 
-  desc "Sync agendado (cron): incremental de notas + carteira + inadimplência. Um comando só pro Railway."
-  task sync: :environment do
-    # Janela de 24h no incremental cobre o intervalo noturno (o cron roda só 8h-19h),
-    # garantindo que mudanças entre a última rodada do dia e a 1ª do dia seguinte não escapem.
-    inv = Sankhya::InvoiceSync.new(changed_within_hours: 24).call
-    puts "Notas: #{inv[:rows]} lidas → #{inv[:imported]} novas, #{inv[:updated]} atualizadas, #{inv[:skipped]} puladas."
-    port = Sankhya::PendingOrderSync.new.call
-    puts "Carteira: #{port[:rows]} pedidos, R$ #{port[:total]}."
-    inad = Sankhya::OverdueTitleSync.new.call
-    puts "Inadimplência: #{inad[:rows]} títulos, R$ #{inad[:total]} (#{inad[:protested]} protestados)."
+  desc "DRY-RUN reconcile de notas: lista órfãs (deletadas/estornadas no ERP) da janela, sem apagar. Ex: sankhya:invoices_reconcile_dry[90]"
+  task :invoices_reconcile_dry, [ :days ] => :environment do |_t, args|
+    days = (args[:days] || 90).to_i
+    since = Date.current - days
+    sync = Sankhya::InvoiceSync.new(since: since)
+    sync.call(dry_run: true)
+    seen = sync.seen_external_uids.map(&:to_i)
+    # Guard: janela vazia = o reconcile real abortaria (não apagaria nada). Ver task abaixo.
+    abort "Reconcile abortaria: a API não retornou nota na janela de #{days}d (nada seria apagado)." if seen.empty?
+
+    orphan_uids = Invoice.where(negotiation_date: since..).pluck(:external_uid) - seen
+    puts "DRY-RUN reconcile #{days}d (desde #{since}): #{seen.size} NUNOTA no ERP, #{orphan_uids.size} órfã(s) local que seriam removidas:"
+    Invoice.where(external_uid: orphan_uids).order(:negotiation_date).limit(20).each do |i|
+      puts "  - NUNOTA #{i.external_uid} | #{i.negotiation_date} | #{i.kind} | R$ #{i.total_value}#{' | PAGO (perde marcação!)' if i.paid?}"
+    end
   rescue Sankhya::Error => e
     warn "✗ #{e.class}: #{e.message}"
     exit 1
+  end
+
+  desc "Reconcile de notas: upsert da janela + remove órfãs (deletadas/estornadas no ERP), preservando paid. Ex: sankhya:invoices_reconcile[90]"
+  task :invoices_reconcile, [ :days ] => :environment do |_t, args|
+    days = (args[:days] || 90).to_i
+    since = Date.current - days
+    sync = Sankhya::InvoiceSync.new(since: since)
+    res = sync.call # upsert de tudo na janela (refresca edições que o incremental perdeu)
+    seen = sync.seen_external_uids.map(&:to_i)
+    # Guard: se a API não trouxe NADA, NÃO apaga — evita zerar a janela por falha silenciosa.
+    # (Falha de página propaga Sankhya::Error e cai no rescue ANTES de qualquer delete.)
+    abort "Reconcile abortado: a API não retornou nota na janela de #{days}d. Nada foi apagado." if seen.empty?
+
+    orphan_uids = Invoice.where(negotiation_date: since..).pluck(:external_uid) - seen
+    removed = orphan_uids.any? ? Invoice.where(external_uid: orphan_uids).delete_all : 0
+    puts "Reconcile #{days}d (desde #{since}): #{res[:rows]} lidas → #{res[:imported]} novas, #{res[:updated]} atualizadas; #{removed} órfã(s) removida(s)."
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
+
+  desc "Sync agendado (cron): incremental de notas + carteira + inadimplência. Resiliente (uma falha não derruba as outras) + advisory lock contra runs sobrepostos."
+  task sync: :environment do
+    conn = ActiveRecord::Base.connection
+    lock_key = 84_720_001 # id arbitrário do advisory lock deste job
+    unless conn.select_value("SELECT pg_try_advisory_lock(#{lock_key})")
+      warn "sync: outra execução em andamento (advisory lock ocupado) — pulando esta rodada."
+      next
+    end
+
+    errors = []
+    begin
+      # Janela de 24h no incremental cobre o intervalo noturno (o cron roda só 8h-19h),
+      # garantindo que mudanças entre a última rodada do dia e a 1ª do dia seguinte não escapem.
+      steps = {
+        "Notas" => -> {
+          r = Sankhya::InvoiceSync.new(changed_within_hours: 24).call
+          "#{r[:rows]} lidas → #{r[:imported]} novas, #{r[:updated]} atualizadas, #{r[:skipped]} puladas."
+        },
+        "Carteira" => -> {
+          r = Sankhya::PendingOrderSync.new.call
+          "#{r[:rows]} pedidos, R$ #{r[:total]}."
+        },
+        "Inadimplência" => -> {
+          r = Sankhya::OverdueTitleSync.new.call
+          "#{r[:rows]} títulos, R$ #{r[:total]} (#{r[:protested]} protestados)."
+        }
+      }
+      # Cada dataset falha isolado: um erro de API nas Notas não impede Carteira/Inadimplência.
+      steps.each do |label, step|
+        puts "#{label}: #{step.call}"
+      rescue => e
+        errors << "#{label}: #{e.class} — #{e.message}"
+        warn "✗ #{label} falhou (as demais seguem): #{e.message}"
+      end
+    ensure
+      conn.execute("SELECT pg_advisory_unlock(#{lock_key})")
+    end
+
+    unless errors.empty?
+      warn "sync terminou com #{errors.size} falha(s): #{errors.join(' | ')}"
+      exit 1
+    end
   end
 
   # CUTOVER de produção: LIMPA os fatos+dimensões e repopula TUDO pela API.
