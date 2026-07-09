@@ -15,7 +15,6 @@ const NAV = [
   { label: 'Carteira', href: '/carteira' },
   { label: 'Inadimplência', href: '/inadimplencia' },
   { label: 'Devoluções', href: '/devolucoes' },
-  { label: 'Importações', href: '/importacoes' },
 ]
 
 function isActive(item: { href: string; exact?: boolean }) {

@@ -102,7 +102,6 @@ GEM
     concurrent-ruby (1.3.7)
     connection_pool (3.0.2)
     crass (1.0.7)
-    csv (3.3.5)
     date (3.5.1)
     debug (1.11.1)
       irb (~> 1.10)
@@ -264,13 +263,6 @@ GEM
     reline (0.6.3)
       io-console (~> 0.5)
     rexml (3.4.4)
-    roo (2.10.1)
-      nokogiri (~> 1)
-      rubyzip (>= 1.3.0, < 3.0.0)
-    roo-xls (1.2.0)
-      nokogiri
-      roo (>= 2.0.0, < 3)
-      spreadsheet (> 0.9.0)
     rubocop (1.88.1)
       json (~> 2.3)
       language_server-protocol (~> 3.17.0.2)
@@ -299,7 +291,6 @@ GEM
       rubocop (>= 1.72)
       rubocop-performance (>= 1.24)
       rubocop-rails (>= 2.30)
-    ruby-ole (1.2.13.1)
     ruby-progressbar (1.13.0)
     ruby-vips (2.3.0)
       ffi (~> 1.12)
@@ -312,10 +303,6 @@ GEM
       rexml (~> 3.2, >= 3.2.5)
       rubyzip (>= 1.2.2, < 4.0)
       websocket (~> 1.0)
-    spreadsheet (1.3.5)
-      bigdecimal
-      logger
-      ruby-ole
     thor (1.5.0)
     thruster (0.1.22)
     thruster (0.1.22-aarch64-linux)
@@ -371,7 +358,6 @@ DEPENDENCIES
   brakeman
   bundler-audit
   capybara
-  csv (~> 3.3)
   debug
   image_processing (~> 1.2)
   inertia_rails (~> 3.21)
@@ -380,8 +366,6 @@ DEPENDENCIES
   propshaft
   puma (>= 5.0)
   rails (~> 8.1.3)
-  roo (~> 2.10)
-  roo-xls (~> 1.2)
   rubocop-rails-omakase
   selenium-webdriver
   thruster
