@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { router } from '@inertiajs/vue3'
 import MultiSelect from '@/components/MultiSelect.vue'
 import type { AppliedFilters, FilterOptions } from '@/types/models'
@@ -21,7 +21,13 @@ const MONTHS = [
   { id: 12, name: 'Dezembro' },
 ]
 
+// Modo de recorte temporal: por ano/meses OU por intervalo De/Até (exclusivos).
+type PeriodMode = 'months' | 'range'
+const periodMode = ref<PeriodMode>(props.filters.start || props.filters.end ? 'range' : 'months')
+
 const state = reactive({
+  start: props.filters.start ?? '',
+  end: props.filters.end ?? '',
   year: props.filters.year ? String(props.filters.year) : '',
   months: [...(props.filters.months ?? [])],
   company_id: props.filters.company_id ? String(props.filters.company_id) : '',
@@ -31,7 +37,9 @@ const state = reactive({
 
 const hasFilters = () =>
   Boolean(
-    state.year ||
+    state.start ||
+      state.end ||
+      state.year ||
       state.months.length ||
       state.company_id ||
       state.salesperson_ids.length ||
@@ -40,8 +48,14 @@ const hasFilters = () =>
 
 function apply() {
   const params: Record<string, string | number[]> = {}
-  if (state.year) params.year = state.year
-  if (state.months.length) params.months = state.months
+  // Envia apenas o recorte do modo ativo — os dois nunca vão juntos.
+  if (periodMode.value === 'range') {
+    if (state.start) params.start = state.start
+    if (state.end) params.end = state.end
+  } else {
+    if (state.year) params.year = state.year
+    if (state.months.length) params.months = state.months
+  }
   if (state.company_id) params.company_id = state.company_id
   if (state.salesperson_ids.length) params.salesperson_ids = state.salesperson_ids
   if (state.partner_ids.length) params.partner_ids = state.partner_ids
@@ -49,30 +63,58 @@ function apply() {
 }
 
 function clear() {
+  state.start = ''
+  state.end = ''
   state.year = ''
   state.months = []
   state.company_id = ''
   state.salesperson_ids = []
   state.partner_ids = []
+  periodMode.value = 'months'
   router.get(window.location.pathname, {}, { preserveState: true, preserveScroll: true, replace: true })
 }
 
 const field =
   'w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500'
 const labelCls = 'mb-1 block text-xs font-medium text-slate-500'
+const tab = 'rounded px-3 py-1 text-xs font-medium transition-colors'
+const tabActive = 'bg-white text-indigo-600 shadow-sm'
+const tabIdle = 'text-slate-500 hover:text-slate-700'
 </script>
 
 <template>
   <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div class="mb-3 inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
+      <button type="button" :class="[tab, periodMode === 'months' ? tabActive : tabIdle]" @click="periodMode = 'months'">
+        Ano / Meses
+      </button>
+      <button type="button" :class="[tab, periodMode === 'range' ? tabActive : tabIdle]" @click="periodMode = 'range'">
+        Intervalo de datas
+      </button>
+    </div>
+
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-      <div>
-        <label :class="labelCls">Ano</label>
-        <select v-model="state.year" :class="field">
-          <option value="">Todos</option>
-          <option v-for="y in options.years" :key="y" :value="String(y)">{{ y }}</option>
-        </select>
-      </div>
-      <MultiSelect label="Meses" :options="MONTHS" v-model="state.months" all-label="Todos" />
+      <template v-if="periodMode === 'months'">
+        <div>
+          <label :class="labelCls">Ano</label>
+          <select v-model="state.year" :class="field">
+            <option value="">Todos</option>
+            <option v-for="y in options.years" :key="y" :value="String(y)">{{ y }}</option>
+          </select>
+        </div>
+        <MultiSelect label="Meses" :options="MONTHS" v-model="state.months" all-label="Todos" />
+      </template>
+      <template v-else>
+        <div>
+          <label :class="labelCls">De</label>
+          <input v-model="state.start" type="date" :class="field" @keyup.enter="apply" />
+        </div>
+        <div>
+          <label :class="labelCls">Até</label>
+          <input v-model="state.end" type="date" :class="field" @keyup.enter="apply" />
+        </div>
+      </template>
+
       <div>
         <label :class="labelCls">Empresa</label>
         <select v-model="state.company_id" :class="field">

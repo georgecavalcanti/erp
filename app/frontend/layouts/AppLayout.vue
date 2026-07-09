@@ -1,11 +1,31 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { Link, usePage } from '@inertiajs/vue3'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { Link, usePage, usePoll, router } from '@inertiajs/vue3'
 import FlashMessages from '@/components/FlashMessages.vue'
 
 const page = usePage()
 const user = computed(() => page.props.auth?.user ?? null)
 const currentPath = computed(() => new URL(page.url, 'http://x').pathname)
+
+// Auto-refresh: recarrega a tela atual a cada 30s reaproveitando a URL vigente
+// (window.location.href) — logo, mantém os filtros da query string. O reload do
+// Inertia já força preserveScroll/preserveState, então não pula o scroll nem
+// atrapalha quem está ajustando um filtro. Com a aba em segundo plano, o Inertia
+// reduz a frequência automaticamente.
+const REFRESH_MS = 30_000
+usePoll(REFRESH_MS)
+
+const lastUpdate = ref(nowLabel())
+function nowLabel() {
+  return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+let stopOnSuccess: (() => void) | undefined
+onMounted(() => {
+  stopOnSuccess = router.on('success', () => {
+    lastUpdate.value = nowLabel()
+  })
+})
+onUnmounted(() => stopOnSuccess?.())
 
 const NAV = [
   { label: 'Visão geral', href: '/', exact: true },
@@ -51,6 +71,13 @@ function isActive(item: { href: string; exact?: boolean }) {
             <span class="text-sm font-semibold text-slate-800">Faturamento</span>
           </div>
           <div class="ml-auto flex items-center gap-4">
+            <span
+              class="hidden items-center gap-1.5 text-xs text-slate-400 sm:inline-flex"
+              title="A tela atualiza sozinha a cada 30s, mantendo os filtros aplicados"
+            >
+              <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"></span>
+              Atualizado às {{ lastUpdate }}
+            </span>
             <span class="hidden text-sm text-slate-500 sm:inline">{{ user?.email }}</span>
             <Link
               href="/session"

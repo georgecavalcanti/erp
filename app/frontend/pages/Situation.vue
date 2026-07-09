@@ -6,6 +6,7 @@ import KpiCard from '@/components/KpiCard.vue'
 import ChartCard from '@/components/ChartCard.vue'
 import BaseChart from '@/components/BaseChart.vue'
 import FilterBar from '@/components/FilterBar.vue'
+import InfoHint from '@/components/InfoHint.vue'
 import { brl, brlCompact, dateBR } from '@/lib/format'
 import { PALETTE, GRID } from '@/lib/charts'
 import type { SituationRow, SituationTotals, AppliedFilters, FilterOptions } from '@/types/models'
@@ -66,19 +67,57 @@ const cols: { key: keyof SituationTotals; label: string; tone?: string }[] = [
     <FilterBar :filters="filters" :options="filterOptions" />
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <KpiCard label="Faturamento líquido" :value="brl(totals.liquido)" tone="positive" />
-      <KpiCard label="Carteira a faturar" :value="brl(totals.carteira)" />
-      <KpiCard label="Inadimplência (aberto)" :value="brl(totals.inad_aberto)" tone="warning" />
-      <KpiCard label="Saldo devedor" :value="brl(totals.saldo)" tone="negative" />
+      <KpiCard
+        label="Faturamento líquido"
+        :value="brl(totals.liquido)"
+        tone="positive"
+        hint="Vendas menos devoluções por vendedor, no recorte selecionado."
+        hint-scope="all"
+      />
+      <KpiCard
+        label="Carteira a faturar"
+        :value="brl(totals.carteira)"
+        hint="Pedidos pendentes de faturamento, recortados pelos mesmos filtros (ano/meses ou intervalo, empresa, vendedores, parceiros)."
+        hint-scope="all"
+      />
+      <KpiCard
+        label="Inadimplência (aberto)"
+        :value="brl(totals.inad_aberto)"
+        tone="warning"
+        hint="Títulos em aberto por vendedor (snapshot). Responde apenas ao filtro de Vendedores — mês, ano, intervalo e parceiro não se aplicam a ela."
+        hint-scope="partial"
+        hint-note="Só o filtro de Vendedores"
+      />
+      <KpiCard
+        label="Saldo devedor"
+        :value="brl(totals.saldo)"
+        tone="negative"
+        hint="Em aberto + protestado por vendedor (snapshot). Responde apenas ao filtro de Vendedores."
+        hint-scope="partial"
+        hint-note="Só o filtro de Vendedores"
+      />
     </div>
 
-    <ChartCard title="Líquido × Carteira × Inadimplência" subtitle="Top 12 vendedores por líquido faturado">
+    <ChartCard
+      title="Líquido × Carteira × Inadimplência"
+      subtitle="Top 12 vendedores por líquido faturado"
+      hint="Compara, por vendedor, faturamento líquido, carteira e inadimplência. Líquido e carteira seguem todos os filtros; a inadimplência (snapshot) responde só ao filtro de Vendedores."
+      hint-scope="partial"
+      hint-note="Inadimplência: só Vendedores"
+    >
       <BaseChart :option="chartOption" :height="420" />
     </ChartCard>
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <header class="border-b border-slate-200 px-5 py-3">
-        <h3 class="text-sm font-semibold text-slate-700">Detalhamento por vendedor</h3>
+        <h3 class="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+          Detalhamento por vendedor
+          <InfoHint
+            text="Uma linha por vendedor com faturamento, carteira e inadimplência. Faturamento e carteira seguem todos os filtros; a inadimplência responde só ao filtro de Vendedores."
+            scope="partial"
+            scope-note="Inadimplência: só Vendedores"
+          />
+        </h3>
       </header>
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200 text-sm">

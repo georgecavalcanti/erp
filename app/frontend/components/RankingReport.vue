@@ -4,6 +4,7 @@ import FilterBar from '@/components/FilterBar.vue'
 import KpiCard from '@/components/KpiCard.vue'
 import ChartCard from '@/components/ChartCard.vue'
 import BaseChart from '@/components/BaseChart.vue'
+import InfoHint from '@/components/InfoHint.vue'
 import { brl, brlCompact, num, monthLabel } from '@/lib/format'
 import { PALETTE, GRID } from '@/lib/charts'
 import type { Summary, RankingRow, Evolution, AppliedFilters, FilterOptions } from '@/types/models'
@@ -64,24 +65,61 @@ const rankingBarOption = computed(() => {
     <FilterBar :filters="filters" :options="filterOptions" />
 
     <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <KpiCard label="Faturamento líquido" :value="brl(summary.net_revenue)" tone="positive" />
-      <KpiCard label="Faturamento bruto" :value="brl(summary.gross_sales)" />
-      <KpiCard label="Notas" :value="num(summary.invoice_count)" />
-      <KpiCard label="Ticket médio" :value="brl(summary.avg_ticket)" />
+      <KpiCard
+        label="Faturamento líquido"
+        :value="brl(summary.net_revenue)"
+        tone="positive"
+        hint="Vendas menos devoluções no recorte selecionado."
+        hint-scope="all"
+      />
+      <KpiCard
+        label="Faturamento bruto"
+        :value="brl(summary.gross_sales)"
+        hint="Soma das vendas (notas confirmadas) no recorte, sem descontar devoluções."
+        hint-scope="all"
+      />
+      <KpiCard
+        label="Notas"
+        :value="num(summary.invoice_count)"
+        hint="Número de notas de venda no recorte selecionado."
+        hint-scope="all"
+      />
+      <KpiCard
+        label="Ticket médio"
+        :value="brl(summary.avg_ticket)"
+        hint="Faturamento bruto dividido pelo número de notas, no recorte."
+        hint-scope="all"
+      />
     </div>
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <ChartCard title="Evolução mês a mês" :subtitle="`Líquido por ${entity.toLowerCase()} (top 8)`">
+      <ChartCard
+        title="Evolução mês a mês"
+        :subtitle="`Líquido por ${entity.toLowerCase()} (top 8)`"
+        :hint="`Evolução mensal do faturamento líquido dos maiores ${entity.toLowerCase()}s, no recorte selecionado.`"
+        hint-scope="all"
+      >
         <BaseChart :option="evolutionOption" :height="360" />
       </ChartCard>
-      <ChartCard title="Ranking" :subtitle="`Top 12 ${entity.toLowerCase()}s por líquido`">
+      <ChartCard
+        title="Ranking"
+        :subtitle="`Top 12 ${entity.toLowerCase()}s por líquido`"
+        :hint="`Maiores ${entity.toLowerCase()}s por faturamento líquido no recorte selecionado.`"
+        hint-scope="all"
+      >
         <BaseChart :option="rankingBarOption" :height="360" />
       </ChartCard>
     </div>
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <header class="border-b border-slate-200 px-5 py-3">
-        <h3 class="text-sm font-semibold text-slate-700">Detalhamento por {{ entity.toLowerCase() }}</h3>
+        <h3 class="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+          Detalhamento por {{ entity.toLowerCase() }}
+          <InfoHint
+            :text="`Uma linha por ${entity.toLowerCase()} com notas, bruto, devoluções, comissão e líquido, no recorte selecionado.`"
+            scope="all"
+          />
+        </h3>
       </header>
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200 text-sm">

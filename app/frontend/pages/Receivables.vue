@@ -5,6 +5,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import KpiCard from '@/components/KpiCard.vue'
 import ChartCard from '@/components/ChartCard.vue'
 import BaseChart from '@/components/BaseChart.vue'
+import InfoHint from '@/components/InfoHint.vue'
 import { brl, brlCompact, num, dateBR, monthLabel } from '@/lib/format'
 import { PALETTE, GRID } from '@/lib/charts'
 import type { DelinquencySummary, DelinquencyRow, NamedAmount, MonthAmount } from '@/types/models'
@@ -57,24 +58,71 @@ const dueMonthOption = computed(() => ({
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <KpiCard label="Em aberto" :value="brl(summary.open_total)" tone="warning" />
-      <KpiCard label="Protestado" :value="brl(summary.protested_total)" tone="negative" :sub="`24: ${brl(summary.protested_by_year['2024'] ?? 0)} · 25: ${brl(summary.protested_by_year['2025'] ?? 0)} · 26: ${brl(summary.protested_by_year['2026'] ?? 0)}`" />
-      <KpiCard label="Saldo devedor" :value="brl(summary.saldo_devedor)" tone="negative" />
-      <KpiCard label="Vendedores" :value="num(summary.salespeople_count)" />
+      <KpiCard
+        label="Em aberto"
+        :value="brl(summary.open_total)"
+        tone="warning"
+        hint="Total de títulos vencidos e não pagos, do último sincronismo do ERP."
+        hint-scope="none"
+        hint-note="Snapshot — esta tela não tem filtros"
+      />
+      <KpiCard
+        label="Protestado"
+        :value="brl(summary.protested_total)"
+        tone="negative"
+        :sub="`24: ${brl(summary.protested_by_year['2024'] ?? 0)} · 25: ${brl(summary.protested_by_year['2025'] ?? 0)} · 26: ${brl(summary.protested_by_year['2026'] ?? 0)}`"
+        hint="Total protestado, com a quebra por ano no subtítulo."
+        hint-scope="none"
+        hint-note="Snapshot — esta tela não tem filtros"
+      />
+      <KpiCard
+        label="Saldo devedor"
+        :value="brl(summary.saldo_devedor)"
+        tone="negative"
+        hint="Em aberto + protestado."
+        hint-scope="none"
+        hint-note="Snapshot — esta tela não tem filtros"
+      />
+      <KpiCard
+        label="Vendedores"
+        :value="num(summary.salespeople_count)"
+        hint="Quantidade de vendedores com inadimplência registrada."
+        hint-scope="none"
+        hint-note="Snapshot — esta tela não tem filtros"
+      />
     </div>
 
     <div class="grid grid-cols-1 gap-6" :class="summary.has_detail ? 'lg:grid-cols-2' : ''">
-      <ChartCard title="Inadimplência por vendedor" subtitle="Em aberto + protestado">
+      <ChartCard
+        title="Inadimplência por vendedor"
+        subtitle="Em aberto + protestado"
+        hint="Valor em aberto e protestado por vendedor (barras empilhadas)."
+        hint-scope="none"
+        hint-note="Snapshot — esta tela não tem filtros"
+      >
         <BaseChart :option="salespeopleOption" :height="440" />
       </ChartCard>
-      <ChartCard v-if="summary.has_detail" title="Em aberto por mês de vencimento">
+      <ChartCard
+        v-if="summary.has_detail"
+        title="Em aberto por mês de vencimento"
+        hint="Total em aberto agrupado pelo mês de vencimento do título."
+        hint-scope="none"
+        hint-note="Snapshot — esta tela não tem filtros"
+      >
         <BaseChart :option="dueMonthOption" :height="440" />
       </ChartCard>
     </div>
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <header class="border-b border-slate-200 px-5 py-3">
-        <h3 class="text-sm font-semibold text-slate-700">Detalhamento por vendedor</h3>
+        <h3 class="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+          Detalhamento por vendedor
+          <InfoHint
+            text="Detalhe da inadimplência por vendedor: em aberto, protestado e saldo devedor."
+            scope="none"
+            scope-note="Snapshot — esta tela não tem filtros"
+          />
+        </h3>
       </header>
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
