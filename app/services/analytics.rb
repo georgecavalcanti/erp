@@ -123,7 +123,8 @@ class Analytics
   private
 
   def base
-    scope = Invoice.all
+    # confirmed_only: relatórios contam só notas liberadas (STATUSNOTA='L'), como a Situação.
+    scope = Invoice.confirmed_only
     scope = scope.in_year(@year) if @year
     scope = scope.in_months(@months) if @months.any?
     scope = scope.where(company_id: @company_id) if @company_id
