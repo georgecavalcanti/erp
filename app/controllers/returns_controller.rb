@@ -7,7 +7,7 @@ class ReturnsController < ApplicationController
 
   def index
     report = analytics
-    scope = returns_scope
+    scope = report.invoices.returns
 
     page = [ params[:page].to_i, 1 ].max
     total = scope.count
@@ -23,16 +23,5 @@ class ReturnsController < ApplicationController
       filters: applied_filters,
       filterOptions: filter_options
     }
-  end
-
-  private
-
-  def returns_scope
-    scope = Invoice.returns
-    scope = scope.in_period(analytics_period) if analytics_period
-    scope = scope.where(company_id: params[:company_id]) if params[:company_id].present?
-    scope = scope.where(salesperson_id: params[:salesperson_id]) if params[:salesperson_id].present?
-    scope = scope.where(partner_id: params[:partner_id]) if params[:partner_id].present?
-    scope
   end
 end

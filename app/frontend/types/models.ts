@@ -113,17 +113,18 @@ export interface FilterOption {
 }
 
 export interface FilterOptions {
+  years: number[]
   companies: FilterOption[]
   salespeople: FilterOption[]
   partners: FilterOption[]
 }
 
 export interface AppliedFilters {
-  start: string | null
-  end: string | null
+  year: number | null
+  months: number[]
   company_id: number | null
-  salesperson_id: number | null
-  partner_id: number | null
+  salesperson_ids: number[]
+  partner_ids: number[]
 }
 
 export type PaymentStatus = 'paid' | 'overdue' | 'pending'

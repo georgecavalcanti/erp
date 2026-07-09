@@ -1,5 +1,5 @@
-# Lê os filtros da query string (período + empresa/vendedor/parceiro) e monta
-# o objeto Analytics correspondente. Compartilhado entre os painéis.
+# Lê os filtros da query string (ano + meses + empresa/vendedores/parceiros) e
+# monta o objeto Analytics correspondente. Compartilhado entre os painéis.
 module AnalyticsFilters
   extend ActiveSupport::Concern
 
@@ -7,38 +7,28 @@ module AnalyticsFilters
 
   def analytics
     Analytics.new(
-      period: analytics_period,
+      year: params[:year],
+      months: params[:months],
       company_id: params[:company_id],
-      salesperson_id: params[:salesperson_id],
-      partner_id: params[:partner_id]
+      salesperson_ids: params[:salesperson_ids],
+      partner_ids: params[:partner_ids]
     )
   end
 
-  def analytics_period
-    start_date = parse_date(params[:start])
-    end_date = parse_date(params[:end])
-    return nil unless start_date || end_date
-
-    (start_date || Date.new(2000, 1, 1))..(end_date || Date.new(3000, 1, 1))
-  end
-
-  def parse_date(value)
-    return nil if value.blank?
-
-    Date.parse(value.to_s)
-  rescue ArgumentError, TypeError
-    nil
-  end
-
-  # Filtros aplicados, ecoados ao front para manter o estado dos selects.
+  # Filtros aplicados, ecoados ao front para reidratar a barra de filtros.
   def applied_filters
     {
-      start: params[:start].presence,
-      end: params[:end].presence,
+      year: params[:year].presence&.to_i,
+      months: id_list(params[:months]).select { |m| m.between?(1, 12) },
       company_id: params[:company_id].presence&.to_i,
-      salesperson_id: params[:salesperson_id].presence&.to_i,
-      partner_id: params[:partner_id].presence&.to_i
+      salesperson_ids: id_list(params[:salesperson_ids]),
+      partner_ids: id_list(params[:partner_ids])
     }
+  end
+
+  # Normaliza params de multi-seleção (string, array ou nil) em lista de inteiros.
+  def id_list(raw)
+    Array(raw).map(&:to_i).reject(&:zero?)
   end
 
   def filter_options

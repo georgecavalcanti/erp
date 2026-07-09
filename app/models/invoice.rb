@@ -16,6 +16,14 @@ class Invoice < ApplicationRecord
   scope :returns, -> { kind_return }
   scope :in_period, ->(range) { where(negotiation_date: range) }
   scope :for_month, ->(date) { where(negotiation_date: date.beginning_of_month..date.end_of_month) }
+  # Recorte por ano/meses do calendário (meses podem ser não-contíguos: Jan, Mar, Jun).
+  scope :in_year,   ->(year) { where("EXTRACT(YEAR FROM negotiation_date) = ?", year.to_i) }
+  scope :in_months, ->(months) { where("EXTRACT(MONTH FROM negotiation_date) IN (?)", Array(months).map(&:to_i)) }
+
+  # Só notas confirmadas (STATUSNOTA='L' no ERP). Os relatórios de faturamento
+  # contam apenas o que está liberado — nota pendente/cancelada não infla o total
+  # nem "gruda" quando some do ERP (o sync incremental é cego a deleção).
+  scope :confirmed_only, -> { where(confirmed: true) }
 
   # --- Escopos de pagamento (aplicáveis a vendas) ---
   scope :unpaid,    -> { where(paid: false) }
