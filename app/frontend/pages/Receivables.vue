@@ -102,8 +102,8 @@ const dueMonthOption = computed(() => ({
     </section>
 
     <p v-if="!summary.has_detail" class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
-      Inadimplência importada no formato resumo (por vendedor). Para ver por parceiro, por mês de vencimento e por título,
-      importe o relatório detalhado (com Nº Nota e vencimento por título).
+      Inadimplência disponível apenas no formato resumo (por vendedor). O detalhamento por parceiro, mês de vencimento e
+      título aparece quando a sincronização traz os títulos em aberto do ERP.
     </p>
   </div>
 </template>

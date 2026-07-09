@@ -4,7 +4,7 @@ module Sankhya
   # NUNOTA (external_uid) — re-sincronizar a mesma nota atualiza no lugar.
   #
   # É o ÚNICO caminho de escrita de Invoice na era API-only: substitui o
-  # `upsert_invoice` do antigo SpreadsheetImporter, reusando a mesma lógica de
+  # antigo caminho de import por planilha, reusando a mesma lógica de
   # dimensões (upsert_from por código), classificação (InvoiceClassifier) e
   # prazos (PaymentTermsParser). NUNCA toca `paid`/`paid_at` — controle manual.
   #

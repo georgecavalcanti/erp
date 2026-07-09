@@ -156,23 +156,3 @@ export interface Pagination {
   total: number
   pages: number
 }
-
-export type ImportStatus = 'pending' | 'processing' | 'completed' | 'failed'
-
-export interface ImportBatchRow {
-  id: number
-  filename: string
-  kind: string
-  kind_label: string
-  status: ImportStatus
-  rows_total: number
-  rows_imported: number
-  rows_updated: number
-  rows_skipped: number
-  period_start: string | null
-  period_end: string | null
-  reference_date: string | null
-  error_message: string | null
-  user: string | null
-  created_at: string
-}

@@ -20,12 +20,6 @@ gem "bcrypt", "~> 3.1.7"
 gem "inertia_rails", "~> 3.21"
 gem "vite_rails", "~> 3.11"
 
-# Spreadsheet import: roo reads xlsx/csv, roo-xls adds legacy .xls (ERP export format)
-gem "roo", "~> 2.10"
-gem "roo-xls", "~> 1.2"
-# csv leaves Ruby's default gems in 3.4+; roo depends on it
-gem "csv", "~> 3.3"
-
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[ windows jruby ]
 
