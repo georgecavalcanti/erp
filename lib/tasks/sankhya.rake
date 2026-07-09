@@ -148,4 +148,30 @@ namespace :sankhya do
     warn "✗ #{e.class}: #{e.message}"
     exit 1
   end
+
+  # CUTOVER de produção: LIMPA os fatos+dimensões e repopula TUDO pela API.
+  # Destrutivo — exige token explícito (protege de acidente, mesmo em prod).
+  desc "CUTOVER: limpa o banco e repopula tudo (notas + carteira + inadimplência) pela API. Requer CONFIRM_PROD_WIPE=faturamento."
+  task bootstrap: :environment do
+    unless ENV["CONFIRM_PROD_WIPE"] == "faturamento"
+      abort "RECUSADO: comando destrutivo. Rode com CONFIRM_PROD_WIPE=faturamento para confirmar."
+    end
+
+    db = ActiveRecord::Base.connection.current_database
+    puts "→ Alvo: banco '#{db}' (#{Rails.env}). LIMPANDO e repopulando pela API..."
+    tables = %w[invoices pending_orders overdue_titles delinquencies partners salespeople companies import_batches]
+    ActiveRecord::Base.connection.execute("TRUNCATE #{tables.join(', ')} RESTART IDENTITY")
+    puts "  ✓ banco limpo (usuários preservados)."
+
+    r = Sankhya::InvoiceSync.new(since: nil).call
+    puts "  ✓ notas: #{r[:rows]} lidas (#{r[:imported]} novas, #{r[:skipped]} puladas)"
+    r = Sankhya::PendingOrderSync.new.call
+    puts "  ✓ carteira: #{r[:rows]} pedidos (R$ #{r[:total]})"
+    r = Sankhya::OverdueTitleSync.new.call
+    puts "  ✓ inadimplência: #{r[:rows]} títulos (R$ #{r[:total]}, #{r[:protested]} protestados)"
+    puts "✓ CUTOVER COMPLETO."
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
 end
