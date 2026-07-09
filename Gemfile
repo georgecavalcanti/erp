@@ -10,6 +10,9 @@ gem "pg", "~> 1.1"
 gem "puma", ">= 5.0"
 # Build JSON APIs with ease [https://github.com/rails/jbuilder]
 gem "jbuilder"
+# Background jobs em Postgres (Active Job) + recurring nativo — agenda o sync do
+# Sankhya rodando dentro do próprio Puma (sem Redis, sem worker separado).
+gem "solid_queue", "~> 1.1"
 # Use Redis adapter to run Action Cable in production
 # gem "redis", ">= 4.0.1"
 

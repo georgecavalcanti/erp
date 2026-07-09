@@ -1,0 +1,16 @@
+# Agendamento nativo do Solid Queue (roda no supervisor in-Puma em produção).
+# Cron via Fugit; timezone explícito America/Sao_Paulo porque o app roda em UTC.
+# Só em `production` — em dev/test nada dispara (não bate no ERP à toa).
+production:
+  sankhya_sync:
+    class: SankhyaSyncJob
+    queue: sankhya
+    schedule: "*/30 8-19 * * * America/Sao_Paulo" # a cada 30min, 8h–19h (horário comercial)
+    description: "Incremental de notas + snapshot de carteira e inadimplência"
+
+  sankhya_reconcile:
+    class: SankhyaReconcileJob
+    args: [ 90 ]
+    queue: sankhya
+    schedule: "0 3 * * * America/Sao_Paulo" # 03:00 (madrugada) — remove órfãs da janela de 90d
+    description: "Reconcile de notas: remove órfãs deletadas/estornadas no ERP"
