@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { Head, useForm, usePage } from '@inertiajs/vue3'
 import jattoHero from '@/assets/jatto-hero.jpg'
-import jattoLogo from '@/assets/jatto-logo.png'
+import jattoMark from '@/assets/jatto-mark.png'
 
 const form = useForm({ email_address: '', password: '' })
 const page = usePage()
@@ -17,15 +17,15 @@ function submit() {
   <Head title="Entrar" />
   <div class="flex min-h-screen bg-slate-50">
     <!-- Marca (desktop): arte inteira e centralizada sobre o vermelho da Jatto -->
-    <div class="hidden items-center justify-center bg-[#9e0208] lg:flex lg:w-1/2">
-      <img :src="jattoHero" alt="Jatto Distribuidora" class="w-full object-contain" />
+    <div class="hidden bg-[#9e0208] lg:block lg:w-1/2">
+      <img :src="jattoHero" alt="Jatto Distribuidora" class="h-full w-full object-cover" />
     </div>
 
     <!-- Formulário -->
     <div class="flex w-full items-center justify-center px-4 py-12 lg:w-1/2">
       <div class="w-full max-w-sm">
-        <div class="mb-8 flex justify-center">
-          <img :src="jattoLogo" alt="Jatto" class="h-28 w-28 object-contain" />
+        <div class="mb-8 flex justify-center py-6">
+          <img :src="jattoMark" alt="Jatto Distribuidora" class="w-56 object-contain" />
         </div>
 
         <form
