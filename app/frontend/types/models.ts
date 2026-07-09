@@ -132,6 +132,12 @@ export interface AppliedFilters {
 // Influência dos filtros sobre um card/gráfico (usado pelo InfoHint).
 export type FilterScope = 'all' | 'partial' | 'none'
 
+// Último sync do Sankhya (shared prop, exibido no cabeçalho).
+export interface LastSync {
+  at: string
+  status: 'ok' | 'partial'
+}
+
 export type PaymentStatus = 'paid' | 'overdue' | 'pending'
 export type InvoiceKind = 'sale' | 'return'
 

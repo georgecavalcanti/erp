@@ -16,11 +16,21 @@ class ApplicationController < ActionController::Base
       flash: {
         notice: flash.notice,
         alert: flash.alert
-      }
+      },
+      lastSync: last_sync_info
     }
   end
 
   private
+
+  # Último sync do Sankhya (para o cabeçalho dos painéis). Protegido contra a
+  # janela de deploy em que o código novo roda antes da migration de sync_runs.
+  def last_sync_info
+    run = SyncRun.last_run
+    run && { at: run.finished_at.iso8601, status: run.status }
+  rescue ActiveRecord::StatementInvalid
+    nil
+  end
 
   def set_csrf_cookie
     cookies["CSRF-TOKEN"] = { value: form_authenticity_token, same_site: :lax }

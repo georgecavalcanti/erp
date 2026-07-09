@@ -27,6 +27,24 @@ onMounted(() => {
 })
 onUnmounted(() => stopOnSuccess?.())
 
+// Último sync do Sankhya (shared prop). Atualiza sozinho junto com o auto-refresh,
+// que repuxa as shared props a cada 30s.
+const lastSync = computed(() => page.props.lastSync ?? null)
+const syncLabel = computed(() => {
+  const at = lastSync.value?.at
+  if (!at) return null
+  const d = new Date(at)
+  const sameDay = d.toDateString() === new Date().toDateString()
+  const hm = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return sameDay ? hm : `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${hm}`
+})
+const syncTitle = computed(() => {
+  if (!lastSync.value) return 'Nenhuma sincronização com o Sankhya registrada ainda (roda a cada 30 min em horário comercial).'
+  return lastSync.value.status === 'partial'
+    ? 'A última sincronização com o Sankhya teve falhas parciais — alguns dados podem estar defasados.'
+    : 'Última sincronização com o Sankhya (roda a cada 30 min em horário comercial).'
+})
+
 const NAV = [
   { label: 'Visão geral', href: '/', exact: true },
   { label: 'Situação geral', href: '/situacao' },
@@ -65,12 +83,28 @@ function isActive(item: { href: string; exact?: boolean }) {
       </aside>
 
       <!-- Conteúdo -->
-      <div class="flex-1 lg:pl-60">
+      <!-- min-w-0: permite que este flex item encolha abaixo do conteúdo, para o
+           overflow-x-auto das tabelas conter o scroll (senão a página inteira rola). -->
+      <div class="min-w-0 flex-1 lg:pl-60">
         <header class="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
           <div class="lg:hidden">
             <span class="text-sm font-semibold text-slate-800">Faturamento</span>
           </div>
           <div class="ml-auto flex items-center gap-4">
+            <span
+              class="hidden items-center gap-1.5 text-xs sm:inline-flex"
+              :class="lastSync?.status === 'partial' ? 'text-amber-600' : 'text-slate-400'"
+              :title="syncTitle"
+            >
+              <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path
+                  fill-rule="evenodd"
+                  d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0V5.36l-.31-.31A7 7 0 003.239 8.188a.75.75 0 101.448.389A5.5 5.5 0 0113.89 6.11l.311.31h-2.432a.75.75 0 000 1.5h4.243a.75.75 0 00.53-.219z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              ERP {{ syncLabel ?? '—' }}
+            </span>
             <span
               class="hidden items-center gap-1.5 text-xs text-slate-400 sm:inline-flex"
               title="A tela atualiza sozinha a cada 30s, mantendo os filtros aplicados"
