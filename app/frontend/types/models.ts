@@ -120,12 +120,17 @@ export interface FilterOptions {
 }
 
 export interface AppliedFilters {
+  start: string | null
+  end: string | null
   year: number | null
   months: number[]
   company_id: number | null
   salesperson_ids: number[]
   partner_ids: number[]
 }
+
+// Influência dos filtros sobre um card/gráfico (usado pelo InfoHint).
+export type FilterScope = 'all' | 'partial' | 'none'
 
 export type PaymentStatus = 'paid' | 'overdue' | 'pending'
 export type InvoiceKind = 'sale' | 'return'

@@ -94,30 +94,91 @@ const partnersOption = computed(() => rankingOption(props.topPartners, PALETTE[2
     <FilterBar :filters="filters" :options="filterOptions" />
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <KpiCard label="Faturamento líquido" :value="brl(summary.net_revenue)" tone="positive" />
-      <KpiCard label="Faturamento bruto" :value="brl(summary.gross_sales)" :sub="`${num(summary.invoice_count)} notas`" />
-      <KpiCard label="Devoluções" :value="brl(summary.returns_total)" :tone="summary.returns_total > 0 ? 'negative' : 'default'" />
-      <KpiCard label="Carteira a faturar" :value="brl(portfolio.total)" :sub="`${num(portfolio.count)} pedidos`" />
-      <KpiCard label="Inadimplência (aberto)" :value="brl(delinquency.open_total)" tone="warning" />
-      <KpiCard label="Saldo devedor" :value="brl(delinquency.saldo_devedor)" :sub="`c/ protestado ${brl(delinquency.protested_total)}`" tone="negative" />
+      <KpiCard
+        label="Faturamento líquido"
+        :value="brl(summary.net_revenue)"
+        tone="positive"
+        hint="Vendas menos devoluções no recorte selecionado (apenas notas confirmadas)."
+        hint-scope="all"
+      />
+      <KpiCard
+        label="Faturamento bruto"
+        :value="brl(summary.gross_sales)"
+        :sub="`${num(summary.invoice_count)} notas`"
+        hint="Soma das vendas (notas confirmadas) no recorte, sem descontar devoluções."
+        hint-scope="all"
+      />
+      <KpiCard
+        label="Devoluções"
+        :value="brl(summary.returns_total)"
+        :tone="summary.returns_total > 0 ? 'negative' : 'default'"
+        hint="Total das notas de devolução no recorte selecionado."
+        hint-scope="all"
+      />
+      <KpiCard
+        label="Carteira a faturar"
+        :value="brl(portfolio.total)"
+        :sub="`${num(portfolio.count)} pedidos`"
+        hint="Pedidos liberados e ainda não faturados. É o total atual da carteira inteira — não muda com os filtros deste painel."
+        hint-scope="none"
+        hint-note="Total atual — ignora os filtros"
+      />
+      <KpiCard
+        label="Inadimplência (aberto)"
+        :value="brl(delinquency.open_total)"
+        tone="warning"
+        hint="Títulos em aberto do último sincronismo. Valor global — não é recortado pelos filtros."
+        hint-scope="none"
+        hint-note="Snapshot — ignora os filtros"
+      />
+      <KpiCard
+        label="Saldo devedor"
+        :value="brl(delinquency.saldo_devedor)"
+        :sub="`c/ protestado ${brl(delinquency.protested_total)}`"
+        tone="negative"
+        hint="Em aberto + protestado (snapshot do ERP). Valor global — não é afetado pelos filtros."
+        hint-scope="none"
+        hint-note="Snapshot — ignora os filtros"
+      />
     </div>
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div class="lg:col-span-2">
-        <ChartCard title="Faturamento mês a mês" subtitle="Valor líquido (vendas − devoluções)">
+        <ChartCard
+          title="Faturamento mês a mês"
+          subtitle="Valor líquido (vendas − devoluções)"
+          hint="Faturamento líquido consolidado por mês, no recorte selecionado."
+          hint-scope="all"
+        >
           <BaseChart :option="monthlyOption" :height="320" />
         </ChartCard>
       </div>
-      <ChartCard title="Inadimplência" subtitle="Aberto vs protestado por ano">
+      <ChartCard
+        title="Inadimplência"
+        subtitle="Aberto vs protestado por ano"
+        hint="Distribuição do valor inadimplente entre em aberto e protestado por ano. Snapshot do ERP."
+        hint-scope="none"
+        hint-note="Snapshot — ignora os filtros"
+      >
         <BaseChart :option="delinquencyOption" :height="320" />
       </ChartCard>
     </div>
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <ChartCard title="Top vendedores" subtitle="Por faturamento líquido">
+      <ChartCard
+        title="Top vendedores"
+        subtitle="Por faturamento líquido"
+        hint="Vendedores com maior faturamento líquido no recorte selecionado."
+        hint-scope="all"
+      >
         <BaseChart :option="salespeopleOption" :height="360" />
       </ChartCard>
-      <ChartCard title="Top parceiros" subtitle="Por faturamento líquido">
+      <ChartCard
+        title="Top parceiros"
+        subtitle="Por faturamento líquido"
+        hint="Parceiros com maior faturamento líquido no recorte selecionado."
+        hint-scope="all"
+      >
         <BaseChart :option="partnersOption" :height="360" />
       </ChartCard>
     </div>

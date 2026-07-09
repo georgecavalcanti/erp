@@ -47,9 +47,7 @@ class SituationReport
   # Carteira recortada pelos mesmos filtros do faturamento (PendingOrder tem
   # empresa/vendedor/parceiro/data).
   def portfolio_scope
-    scope = PendingOrder.all
-    scope = scope.in_year(@analytics.year) if @analytics.year
-    scope = scope.in_months(@analytics.months) if @analytics.months.any?
+    scope = @analytics.within_period(PendingOrder.all)
     scope = scope.where(company_id: @analytics.company_id) if @analytics.company_id
     scope = scope.where(salesperson_id: @analytics.salesperson_ids) if @analytics.salesperson_ids.any?
     scope = scope.where(partner_id: @analytics.partner_ids) if @analytics.partner_ids.any?

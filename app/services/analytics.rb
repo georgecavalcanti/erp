@@ -8,7 +8,8 @@ class Analytics
   # aplica o mesmo recorte à carteira/inadimplência).
   attr_reader :year, :months, :company_id, :salesperson_ids, :partner_ids
 
-  def initialize(year: nil, months: nil, company_id: nil, salesperson_ids: nil, partner_ids: nil, as_of: Date.current)
+  def initialize(period: nil, year: nil, months: nil, company_id: nil, salesperson_ids: nil, partner_ids: nil, as_of: Date.current)
+    @period = period
     @year = presence(year)&.to_i
     @months = int_list(months).select { |m| m.between?(1, 12) }
     @company_id = presence(company_id)
@@ -110,6 +111,17 @@ class Analytics
     base
   end
 
+  # Aplica o recorte temporal a um scope com negotiation_date. O intervalo De/Até
+  # (period) tem precedência; sem ele, recorta por ano/meses. Público para que a
+  # Situação aplique o mesmo recorte à carteira.
+  def within_period(scope)
+    return scope.in_period(@period) if @period
+
+    scope = scope.in_year(@year) if @year
+    scope = scope.in_months(@months) if @months.any?
+    scope
+  end
+
   # Opções para os filtros (dropdowns).
   def self.filter_options
     {
@@ -124,9 +136,7 @@ class Analytics
 
   def base
     # confirmed_only: relatórios contam só notas liberadas (STATUSNOTA='L'), como a Situação.
-    scope = Invoice.confirmed_only
-    scope = scope.in_year(@year) if @year
-    scope = scope.in_months(@months) if @months.any?
+    scope = within_period(Invoice.confirmed_only)
     scope = scope.where(company_id: @company_id) if @company_id
     scope = scope.where(salesperson_id: @salesperson_ids) if @salesperson_ids.any?
     scope = scope.where(partner_id: @partner_ids) if @partner_ids.any?

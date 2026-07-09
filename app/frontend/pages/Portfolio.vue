@@ -5,6 +5,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import KpiCard from '@/components/KpiCard.vue'
 import ChartCard from '@/components/ChartCard.vue'
 import BaseChart from '@/components/BaseChart.vue'
+import InfoHint from '@/components/InfoHint.vue'
 import Pagination from '@/components/Pagination.vue'
 import { brl, brlCompact, num, dateBR } from '@/lib/format'
 import { PALETTE, GRID } from '@/lib/charts'
@@ -59,24 +60,69 @@ const partnerOption = computed(() => {
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <KpiCard label="Total da carteira" :value="brl(summary.total)" tone="positive" />
-      <KpiCard label="Pedidos" :value="num(summary.count)" />
-      <KpiCard label="Ticket médio" :value="brl(summary.avg_ticket)" />
-      <KpiCard label="Entrega" :value="brl(summary.by_delivery['ENTREGA'] ?? 0)" :sub="`Retirada ${brl(summary.by_delivery['RETIRADA'] ?? 0)}`" />
+      <KpiCard
+        label="Total da carteira"
+        :value="brl(summary.total)"
+        tone="positive"
+        hint="Soma de todos os pedidos liberados e pendentes de faturamento."
+        hint-scope="none"
+        hint-note="Esta tela ainda não tem filtros"
+      />
+      <KpiCard
+        label="Pedidos"
+        :value="num(summary.count)"
+        hint="Quantidade de pedidos pendentes de faturamento."
+        hint-scope="none"
+        hint-note="Esta tela ainda não tem filtros"
+      />
+      <KpiCard
+        label="Ticket médio"
+        :value="brl(summary.avg_ticket)"
+        hint="Valor total da carteira dividido pela quantidade de pedidos."
+        hint-scope="none"
+        hint-note="Esta tela ainda não tem filtros"
+      />
+      <KpiCard
+        label="Entrega"
+        :value="brl(summary.by_delivery['ENTREGA'] ?? 0)"
+        :sub="`Retirada ${brl(summary.by_delivery['RETIRADA'] ?? 0)}`"
+        hint="Valor dos pedidos com entrega; a retirada aparece no subtítulo."
+        hint-scope="none"
+        hint-note="Esta tela ainda não tem filtros"
+      />
     </div>
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <ChartCard title="Carteira por vendedor" subtitle="Top 12">
+      <ChartCard
+        title="Carteira por vendedor"
+        subtitle="Top 12"
+        hint="Valor da carteira pendente somado por vendedor (12 maiores)."
+        hint-scope="none"
+        hint-note="Esta tela ainda não tem filtros"
+      >
         <BaseChart :option="salespeopleOption" :height="360" />
       </ChartCard>
-      <ChartCard title="Carteira por parceiro" subtitle="Top 12">
+      <ChartCard
+        title="Carteira por parceiro"
+        subtitle="Top 12"
+        hint="Valor da carteira pendente somado por parceiro (12 maiores)."
+        hint-scope="none"
+        hint-note="Esta tela ainda não tem filtros"
+      >
         <BaseChart :option="partnerOption" :height="360" />
       </ChartCard>
     </div>
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <header class="border-b border-slate-200 px-5 py-3">
-        <h3 class="text-sm font-semibold text-slate-700">Pedidos pendentes</h3>
+        <h3 class="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+          Pedidos pendentes
+          <InfoHint
+            text="Lista dos pedidos liberados aguardando faturamento."
+            scope="none"
+            scope-note="Esta tela ainda não tem filtros"
+          />
+        </h3>
       </header>
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
