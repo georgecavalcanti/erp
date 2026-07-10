@@ -2,13 +2,14 @@
 import { computed } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/layouts/AppLayout.vue'
+import FilterBar from '@/components/FilterBar.vue'
 import KpiCard from '@/components/KpiCard.vue'
 import ChartCard from '@/components/ChartCard.vue'
 import BaseChart from '@/components/BaseChart.vue'
 import InfoHint from '@/components/InfoHint.vue'
 import { brl, brlCompact, num, dateBR, monthLabel } from '@/lib/format'
 import { PALETTE, GRID } from '@/lib/charts'
-import type { DelinquencySummary, DelinquencyRow, NamedAmount, MonthAmount } from '@/types/models'
+import type { DelinquencySummary, DelinquencyRow, NamedAmount, MonthAmount, AppliedFilters, FilterOptions } from '@/types/models'
 
 defineOptions({ layout: AppLayout })
 
@@ -17,6 +18,8 @@ const props = defineProps<{
   bySalesperson: DelinquencyRow[]
   byPartner: NamedAmount[]
   byDueMonth: MonthAmount[]
+  filters: AppliedFilters
+  filterOptions: FilterOptions
 }>()
 
 const salespeopleOption = computed(() => {
@@ -57,14 +60,17 @@ const dueMonthOption = computed(() => ({
       </p>
     </div>
 
+    <!-- Snapshot dos títulos em aberto: recorta por vendedor e parceiro. Data e empresa
+         não se aplicam (não há data histórica nem coluna de empresa no título). -->
+    <FilterBar :filters="filters" :options="filterOptions" :show-period="false" :show-company="false" />
+
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <KpiCard
         label="Em aberto"
         :value="brl(summary.open_total)"
         tone="warning"
-        hint="Total de títulos vencidos e não pagos, do último sincronismo do ERP."
-        hint-scope="none"
-        hint-note="Snapshot — esta tela não tem filtros"
+        hint="Total de títulos vencidos e não pagos, no recorte selecionado."
+        hint-scope="all"
       />
       <KpiCard
         label="Protestado"
@@ -72,23 +78,20 @@ const dueMonthOption = computed(() => ({
         tone="negative"
         :sub="`24: ${brl(summary.protested_by_year['2024'] ?? 0)} · 25: ${brl(summary.protested_by_year['2025'] ?? 0)} · 26: ${brl(summary.protested_by_year['2026'] ?? 0)}`"
         hint="Total protestado, com a quebra por ano no subtítulo."
-        hint-scope="none"
-        hint-note="Snapshot — esta tela não tem filtros"
+        hint-scope="all"
       />
       <KpiCard
         label="Saldo devedor"
         :value="brl(summary.saldo_devedor)"
         tone="negative"
-        hint="Em aberto + protestado."
-        hint-scope="none"
-        hint-note="Snapshot — esta tela não tem filtros"
+        hint="Em aberto + protestado, no recorte selecionado."
+        hint-scope="all"
       />
       <KpiCard
         label="Vendedores"
         :value="num(summary.salespeople_count)"
-        hint="Quantidade de vendedores com inadimplência registrada."
-        hint-scope="none"
-        hint-note="Snapshot — esta tela não tem filtros"
+        hint="Quantidade de vendedores com inadimplência no recorte selecionado."
+        hint-scope="all"
       />
     </div>
 
@@ -96,18 +99,16 @@ const dueMonthOption = computed(() => ({
       <ChartCard
         title="Inadimplência por vendedor"
         subtitle="Em aberto + protestado"
-        hint="Valor em aberto e protestado por vendedor (barras empilhadas)."
-        hint-scope="none"
-        hint-note="Snapshot — esta tela não tem filtros"
+        hint="Valor em aberto e protestado por vendedor (barras empilhadas), no recorte."
+        hint-scope="all"
       >
         <BaseChart :option="salespeopleOption" :height="440" />
       </ChartCard>
       <ChartCard
         v-if="summary.has_detail"
         title="Em aberto por mês de vencimento"
-        hint="Total em aberto agrupado pelo mês de vencimento do título."
-        hint-scope="none"
-        hint-note="Snapshot — esta tela não tem filtros"
+        hint="Total em aberto agrupado pelo mês de vencimento do título, no recorte."
+        hint-scope="all"
       >
         <BaseChart :option="dueMonthOption" :height="440" />
       </ChartCard>
@@ -119,8 +120,7 @@ const dueMonthOption = computed(() => ({
           Detalhamento por vendedor
           <InfoHint
             text="Detalhe da inadimplência por vendedor: em aberto, protestado e saldo devedor."
-            scope="none"
-            scope-note="Snapshot — esta tela não tem filtros"
+            scope="all"
           />
         </h3>
       </header>
@@ -143,6 +143,9 @@ const dueMonthOption = computed(() => ({
               <td class="px-5 py-2.5 text-right tabular-nums" :class="row.open > 0 ? 'text-amber-600' : 'text-slate-300'">{{ brl(row.open) }}</td>
               <td class="px-5 py-2.5 text-right tabular-nums" :class="row.protested > 0 ? 'text-red-600' : 'text-slate-300'">{{ brl(row.protested) }}</td>
               <td class="px-5 py-2.5 text-right font-semibold tabular-nums text-slate-800">{{ brl(row.saldo) }}</td>
+            </tr>
+            <tr v-if="bySalesperson.length === 0">
+              <td colspan="4" class="px-5 py-12 text-center text-slate-400">Nenhuma inadimplência no recorte selecionado.</td>
             </tr>
           </tbody>
         </table>

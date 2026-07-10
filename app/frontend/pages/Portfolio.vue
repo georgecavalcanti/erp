@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/layouts/AppLayout.vue'
+import FilterBar from '@/components/FilterBar.vue'
 import KpiCard from '@/components/KpiCard.vue'
 import ChartCard from '@/components/ChartCard.vue'
 import BaseChart from '@/components/BaseChart.vue'
@@ -15,6 +16,8 @@ import type {
   NamedAmount,
   PendingOrderRow,
   Pagination as Pager,
+  AppliedFilters,
+  FilterOptions,
 } from '@/types/models'
 
 defineOptions({ layout: AppLayout })
@@ -25,6 +28,8 @@ const props = defineProps<{
   byPartner: NamedAmount[]
   orders: PendingOrderRow[]
   pagination: Pager
+  filters: AppliedFilters
+  filterOptions: FilterOptions
 }>()
 
 const salespeopleOption = computed(() => {
@@ -56,39 +61,31 @@ const partnerOption = computed(() => {
   <div class="space-y-6">
     <div>
       <h1 class="text-xl font-semibold text-slate-800">Carteira a faturar</h1>
-      <p class="text-sm text-slate-500">Pedidos liberados, pendentes de faturamento.</p>
+      <p class="text-sm text-slate-500">Pedidos liberados, pendentes de faturamento · sempre o mês corrente.</p>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <!-- Sem filtro de data: a carteira é snapshot do mês corrente (data não recorta). -->
+    <FilterBar :filters="filters" :options="filterOptions" :show-period="false" />
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <KpiCard
         label="Total da carteira"
         :value="brl(summary.total)"
         tone="positive"
-        hint="Soma de todos os pedidos liberados e pendentes de faturamento."
-        hint-scope="none"
-        hint-note="Esta tela ainda não tem filtros"
+        hint="Soma dos pedidos liberados e pendentes de faturamento, no recorte selecionado."
+        hint-scope="all"
       />
       <KpiCard
         label="Pedidos"
         :value="num(summary.count)"
-        hint="Quantidade de pedidos pendentes de faturamento."
-        hint-scope="none"
-        hint-note="Esta tela ainda não tem filtros"
+        hint="Quantidade de pedidos pendentes de faturamento, no recorte selecionado."
+        hint-scope="all"
       />
       <KpiCard
         label="Ticket médio"
         :value="brl(summary.avg_ticket)"
-        hint="Valor total da carteira dividido pela quantidade de pedidos."
-        hint-scope="none"
-        hint-note="Esta tela ainda não tem filtros"
-      />
-      <KpiCard
-        label="Entrega"
-        :value="brl(summary.by_delivery['ENTREGA'] ?? 0)"
-        :sub="`Retirada ${brl(summary.by_delivery['RETIRADA'] ?? 0)}`"
-        hint="Valor dos pedidos com entrega; a retirada aparece no subtítulo."
-        hint-scope="none"
-        hint-note="Esta tela ainda não tem filtros"
+        hint="Valor total da carteira dividido pela quantidade de pedidos, no recorte."
+        hint-scope="all"
       />
     </div>
 
@@ -96,18 +93,16 @@ const partnerOption = computed(() => {
       <ChartCard
         title="Carteira por vendedor"
         subtitle="Top 12"
-        hint="Valor da carteira pendente somado por vendedor (12 maiores)."
-        hint-scope="none"
-        hint-note="Esta tela ainda não tem filtros"
+        hint="Valor da carteira pendente somado por vendedor (12 maiores), no recorte."
+        hint-scope="all"
       >
         <BaseChart :option="salespeopleOption" :height="360" />
       </ChartCard>
       <ChartCard
         title="Carteira por parceiro"
         subtitle="Top 12"
-        hint="Valor da carteira pendente somado por parceiro (12 maiores)."
-        hint-scope="none"
-        hint-note="Esta tela ainda não tem filtros"
+        hint="Valor da carteira pendente somado por parceiro (12 maiores), no recorte."
+        hint-scope="all"
       >
         <BaseChart :option="partnerOption" :height="360" />
       </ChartCard>
@@ -118,9 +113,8 @@ const partnerOption = computed(() => {
         <h3 class="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
           Pedidos pendentes
           <InfoHint
-            text="Lista dos pedidos liberados aguardando faturamento."
-            scope="none"
-            scope-note="Esta tela ainda não tem filtros"
+            text="Lista dos pedidos liberados aguardando faturamento, no recorte selecionado."
+            scope="all"
           />
         </h3>
       </header>
@@ -144,6 +138,9 @@ const partnerOption = computed(() => {
               <td class="px-5 py-3 tabular-nums text-slate-500">{{ dateBR(o.negotiation_date) }}</td>
               <td class="px-5 py-3 text-xs text-slate-500">{{ o.delivery_type ?? '—' }}</td>
               <td class="px-5 py-3 text-right font-medium tabular-nums text-slate-800">{{ brl(o.total_value) }}</td>
+            </tr>
+            <tr v-if="orders.length === 0">
+              <td colspan="6" class="px-5 py-12 text-center text-slate-400">Nenhum pedido pendente no recorte selecionado.</td>
             </tr>
           </tbody>
         </table>

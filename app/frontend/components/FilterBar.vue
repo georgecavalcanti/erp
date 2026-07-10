@@ -4,7 +4,17 @@ import { router } from '@inertiajs/vue3'
 import MultiSelect from '@/components/MultiSelect.vue'
 import type { AppliedFilters, FilterOptions } from '@/types/models'
 
-const props = defineProps<{ filters: AppliedFilters; options: FilterOptions }>()
+// showPeriod/showCompany: telas de snapshot (Carteira/Inadimplência) escondem os
+// controles que não as recortam (data não se aplica; Inadimplência não tem empresa).
+const props = withDefaults(
+  defineProps<{
+    filters: AppliedFilters
+    options: FilterOptions
+    showPeriod?: boolean
+    showCompany?: boolean
+  }>(),
+  { showPeriod: true, showCompany: true },
+)
 
 const MONTHS = [
   { id: 1, name: 'Janeiro' },
@@ -49,16 +59,22 @@ const hasFilters = () =>
 function apply() {
   const params: Record<string, string | number[]> = {}
   // Envia apenas o recorte do modo ativo — os dois nunca vão juntos.
-  if (periodMode.value === 'range') {
-    if (state.start) params.start = state.start
-    if (state.end) params.end = state.end
-  } else {
-    if (state.year) params.year = state.year
-    if (state.months.length) params.months = state.months
+  if (props.showPeriod) {
+    if (periodMode.value === 'range') {
+      if (state.start) params.start = state.start
+      if (state.end) params.end = state.end
+    } else {
+      if (state.year) params.year = state.year
+      if (state.months.length) params.months = state.months
+    }
   }
-  if (state.company_id) params.company_id = state.company_id
-  if (state.salesperson_ids.length) params.salesperson_ids = state.salesperson_ids
-  if (state.partner_ids.length) params.partner_ids = state.partner_ids
+  if (props.showCompany && state.company_id) params.company_id = state.company_id
+  // "Todos selecionados" = sem filtro. Além de correto, evita mandar milhares de ids
+  // na URL (parceiros são ~2,3 mil) e estourar o limite de header do Puma.
+  if (state.salesperson_ids.length && state.salesperson_ids.length < props.options.salespeople.length)
+    params.salesperson_ids = state.salesperson_ids
+  if (state.partner_ids.length && state.partner_ids.length < props.options.partners.length)
+    params.partner_ids = state.partner_ids
   router.get(window.location.pathname, params, { preserveState: true, preserveScroll: true, replace: true })
 }
 
@@ -84,7 +100,7 @@ const tabIdle = 'text-slate-500 hover:text-slate-700'
 
 <template>
   <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-    <div class="mb-3 inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
+    <div v-if="showPeriod" class="mb-3 inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
       <button type="button" :class="[tab, periodMode === 'months' ? tabActive : tabIdle]" @click="periodMode = 'months'">
         Ano / Meses
       </button>
@@ -94,7 +110,7 @@ const tabIdle = 'text-slate-500 hover:text-slate-700'
     </div>
 
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-      <template v-if="periodMode === 'months'">
+      <template v-if="showPeriod && periodMode === 'months'">
         <div>
           <label :class="labelCls">Ano</label>
           <select v-model="state.year" :class="field">
@@ -104,7 +120,7 @@ const tabIdle = 'text-slate-500 hover:text-slate-700'
         </div>
         <MultiSelect label="Meses" :options="MONTHS" v-model="state.months" all-label="Todos" />
       </template>
-      <template v-else>
+      <template v-else-if="showPeriod">
         <div>
           <label :class="labelCls">De</label>
           <input v-model="state.start" type="date" :class="field" @keyup.enter="apply" />
@@ -115,7 +131,7 @@ const tabIdle = 'text-slate-500 hover:text-slate-700'
         </div>
       </template>
 
-      <div>
+      <div v-if="showCompany">
         <label :class="labelCls">Empresa</label>
         <select v-model="state.company_id" :class="field">
           <option value="">Todas</option>

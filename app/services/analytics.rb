@@ -14,7 +14,7 @@ class Analytics
     @months = int_list(months).select { |m| m.between?(1, 12) }
     @company_id = presence(company_id)
     @salesperson_ids = int_list(salesperson_ids)
-    @partner_ids = int_list(partner_ids)
+    @partner_ids = expand_partner_ids(int_list(partner_ids))
     @as_of = as_of
   end
 
@@ -96,11 +96,11 @@ class Analytics
     returns = base.returns.where(fk => top_ids).group(fk, MONTH_SQL).sum(:total_value)
 
     net = Hash.new(0.0)
-    sales.each { |(id, m), v| net[[id, m.strftime("%Y-%m")]] += v.to_f }
-    returns.each { |(id, m), v| net[[id, m.strftime("%Y-%m")]] -= v.to_f }
+    sales.each { |(id, m), v| net[[ id, m.strftime("%Y-%m") ]] += v.to_f }
+    returns.each { |(id, m), v| net[[ id, m.strftime("%Y-%m") ]] -= v.to_f }
 
     series = top_ids.map do |id|
-      { name: names[id] || "—", data: months.map { |ym| net[[id, ym]].round(2) } }
+      { name: names[id] || "—", data: months.map { |ym| net[[ id, ym ]].round(2) } }
     end
     { months: months, series: series }
   end
@@ -128,7 +128,21 @@ class Analytics
       years: Invoice.distinct.pluck(Arel.sql("EXTRACT(YEAR FROM negotiation_date)::int")).compact.sort.reverse,
       companies: Company.order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } },
       salespeople: Salesperson.order(:nickname).pluck(:id, :nickname).map { |id, name| { id: id, name: name } },
-      partners: Partner.order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } }
+      # Dedup por nome: CODPARC distintos com o mesmo NOMEPARC são filiais do mesmo
+      # cliente. Mostra um por nome (representante = menor id); o filtro expande depois.
+      partners: Partner.group(:name).minimum(:id).map { |name, id| { id: id, name: name } }.sort_by { |p| p[:name] }
+    }
+  end
+
+  # Como filter_options, mas restrito ao que aparece num conjunto de fatos (ex.: só
+  # vendedores/parceiros que têm carteira). Evita dropdowns com milhares de opções sem
+  # dado na tela. `years` fica vazio: as telas de snapshot escondem o filtro de data.
+  def self.filter_options_scoped(scope, company: true)
+    {
+      years: [],
+      companies: company ? Company.where(id: scope.where.not(company_id: nil).distinct.select(:company_id)).order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } } : [],
+      salespeople: Salesperson.where(id: scope.where.not(salesperson_id: nil).distinct.select(:salesperson_id)).order(:nickname).pluck(:id, :nickname).map { |id, name| { id: id, name: name } },
+      partners: Partner.where(id: scope.where.not(partner_id: nil).distinct.select(:partner_id)).group(:name).minimum(:id).map { |name, id| { id: id, name: name } }.sort_by { |p| p[:name] }
     }
   end
 
@@ -162,5 +176,15 @@ class Analytics
   # Normaliza params de multi-seleção (string, array ou nil) em lista de inteiros.
   def int_list(raw)
     Array(raw).map(&:to_i).reject(&:zero?)
+  end
+
+  # Parceiros com o MESMO nome são CODPARC distintos do ERP (filiais do mesmo cliente).
+  # O dropdown mostra um por nome; aqui o id escolhido é expandido para todos os que
+  # compartilham o nome — senão o filtro recortaria só uma das filiais.
+  def expand_partner_ids(ids)
+    return ids if ids.empty?
+
+    names = Partner.where(id: ids).distinct.pluck(:name)
+    Partner.where(name: names).ids
   end
 end
