@@ -77,33 +77,34 @@ const cols: { key: keyof SituationTotals; label: string; tone?: string }[] = [
       <KpiCard
         label="Carteira a faturar"
         :value="brl(totals.carteira)"
-        hint="Pedidos pendentes de faturamento, recortados pelos mesmos filtros (ano/meses ou intervalo, empresa, vendedores, parceiros)."
-        hint-scope="all"
+        hint="Pedidos pendentes de faturamento, recortados por empresa, vendedores e parceiros. A data não se aplica (snapshot do mês corrente)."
+        hint-scope="partial"
+        hint-note="Empresa, vendedor e parceiro (não período)"
       />
       <KpiCard
         label="Inadimplência (aberto)"
         :value="brl(totals.inad_aberto)"
         tone="warning"
-        hint="Títulos em aberto por vendedor (snapshot). Responde apenas ao filtro de Vendedores — mês, ano, intervalo e parceiro não se aplicam a ela."
+        hint="Títulos em aberto por vendedor (snapshot), no recorte de vendedor e parceiro. O período não se aplica."
         hint-scope="partial"
-        hint-note="Só o filtro de Vendedores"
+        hint-note="Vendedor e parceiro (não período)"
       />
       <KpiCard
         label="Saldo devedor"
         :value="brl(totals.saldo)"
         tone="negative"
-        hint="Em aberto + protestado por vendedor (snapshot). Responde apenas ao filtro de Vendedores."
+        hint="Em aberto + protestado por vendedor (snapshot), no recorte de vendedor e parceiro."
         hint-scope="partial"
-        hint-note="Só o filtro de Vendedores"
+        hint-note="Vendedor e parceiro (não período)"
       />
     </div>
 
     <ChartCard
       title="Líquido × Carteira × Inadimplência"
       subtitle="Top 12 vendedores por líquido faturado"
-      hint="Compara, por vendedor, faturamento líquido, carteira e inadimplência. Líquido e carteira seguem todos os filtros; a inadimplência (snapshot) responde só ao filtro de Vendedores."
+      hint="Compara, por vendedor, faturamento líquido, carteira e inadimplência. Líquido segue todos os filtros; carteira e inadimplência não respondem à data (snapshots)."
       hint-scope="partial"
-      hint-note="Inadimplência: só Vendedores"
+      hint-note="Carteira/Inadimplência: sem período"
     >
       <BaseChart :option="chartOption" :height="420" />
     </ChartCard>
@@ -113,9 +114,9 @@ const cols: { key: keyof SituationTotals; label: string; tone?: string }[] = [
         <h3 class="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
           Detalhamento por vendedor
           <InfoHint
-            text="Uma linha por vendedor com faturamento, carteira e inadimplência. Faturamento e carteira seguem todos os filtros; a inadimplência responde só ao filtro de Vendedores."
+            text="Uma linha por vendedor com faturamento, carteira e inadimplência. Faturamento segue todos os filtros; carteira e inadimplência não respondem à data (snapshots)."
             scope="partial"
-            scope-note="Inadimplência: só Vendedores"
+            scope-note="Carteira/Inadimplência: sem período"
           />
         </h3>
       </header>

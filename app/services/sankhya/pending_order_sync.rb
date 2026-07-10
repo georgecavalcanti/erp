@@ -17,6 +17,7 @@ module Sankhya
     def initialize(client: Sankhya::Client.new, page_size: PAGE_SIZE)
       @client = client
       @page_size = page_size
+      @companies = {}
       @partners = {}
       @salespeople = {}
     end
@@ -60,13 +61,14 @@ module Sankhya
 
     def page_sql(after:, limit:)
       <<~SQL.squish
-        SELECT CAB.NUNOTA, CAB.CODPARC, CAB.CODVEND,
+        SELECT CAB.NUNOTA, CAB.CODPARC, CAB.CODVEND, CAB.CODEMP,
                TO_CHAR(CAB.DTNEG,'YYYY-MM-DD') DTNEG, TO_CHAR(CAB.DTMOV,'YYYY-MM-DD') DTMOV,
                CAB.VLRNOTA, CAB.STATUSNOTA, CAB.CIF_FOB,
-               PAR.NOMEPARC, VEN.APELIDO
+               PAR.NOMEPARC, VEN.APELIDO, EMP.NOMEFANTASIA
         FROM TGFCAB CAB
         LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
         LEFT JOIN TGFVEN VEN ON VEN.CODVEND = CAB.CODVEND
+        LEFT JOIN TSIEMP EMP ON EMP.CODEMP = CAB.CODEMP
         WHERE CAB.CODTIPOPER IN (#{TOPS.join(',')})
           AND CAB.CODEMP IN (#{COMPANIES.join(',')})
           AND CAB.PENDENTE = 'S'
@@ -83,6 +85,7 @@ module Sankhya
       {
         external_uid: row["NUNOTA"],
         order_number: row["NUNOTA"],
+        company: fetch_company(row["CODEMP"], row["NOMEFANTASIA"]),
         partner: fetch_partner(row["CODPARC"], row["NOMEPARC"]),
         partner_name: row["NOMEPARC"].presence&.to_s,
         salesperson: fetch_salesperson(row["CODVEND"], row["APELIDO"]),
@@ -97,6 +100,12 @@ module Sankhya
         pending: true,
         raw: row
       }
+    end
+
+    def fetch_company(code, name)
+      return nil if code.nil?
+
+      @companies[code] ||= Company.upsert_from(external_code: code, name: name.to_s)
     end
 
     def fetch_partner(code, name)

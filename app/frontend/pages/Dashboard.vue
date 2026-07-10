@@ -119,26 +119,26 @@ const partnersOption = computed(() => rankingOption(props.topPartners, PALETTE[2
         label="Carteira a faturar"
         :value="brl(portfolio.total)"
         :sub="`${num(portfolio.count)} pedidos`"
-        hint="Pedidos liberados e ainda não faturados. É o total atual da carteira inteira — não muda com os filtros deste painel."
-        hint-scope="none"
-        hint-note="Total atual — ignora os filtros"
+        hint="Pedidos liberados e ainda não faturados, no recorte de empresa/vendedor/parceiro. A data não recorta a carteira (snapshot do mês corrente)."
+        hint-scope="partial"
+        hint-note="Empresa, vendedor e parceiro (não período)"
       />
       <KpiCard
         label="Inadimplência (aberto)"
         :value="brl(delinquency.open_total)"
         tone="warning"
-        hint="Títulos em aberto do último sincronismo. Valor global — não é recortado pelos filtros."
-        hint-scope="none"
-        hint-note="Snapshot — ignora os filtros"
+        hint="Títulos em aberto, no recorte de vendedor e parceiro. O período não se aplica (snapshot do ERP)."
+        hint-scope="partial"
+        hint-note="Vendedor e parceiro (não período)"
       />
       <KpiCard
         label="Saldo devedor"
         :value="brl(delinquency.saldo_devedor)"
         :sub="`c/ protestado ${brl(delinquency.protested_total)}`"
         tone="negative"
-        hint="Em aberto + protestado (snapshot do ERP). Valor global — não é afetado pelos filtros."
-        hint-scope="none"
-        hint-note="Snapshot — ignora os filtros"
+        hint="Em aberto + protestado, no recorte de vendedor e parceiro (snapshot do ERP)."
+        hint-scope="partial"
+        hint-note="Vendedor e parceiro (não período)"
       />
     </div>
 
@@ -156,9 +156,9 @@ const partnersOption = computed(() => rankingOption(props.topPartners, PALETTE[2
       <ChartCard
         title="Inadimplência"
         subtitle="Aberto vs protestado por ano"
-        hint="Distribuição do valor inadimplente entre em aberto e protestado por ano. Snapshot do ERP."
-        hint-scope="none"
-        hint-note="Snapshot — ignora os filtros"
+        hint="Distribuição do valor inadimplente entre em aberto e protestado por ano, no recorte de vendedor e parceiro."
+        hint-scope="partial"
+        hint-note="Vendedor e parceiro (não período)"
       >
         <BaseChart :option="delinquencyOption" :height="320" />
       </ChartCard>

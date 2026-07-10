@@ -43,7 +43,6 @@ export interface PortfolioSummary {
   total: number
   count: number
   avg_ticket: number
-  by_delivery: Record<string, number>
 }
 
 export interface PortfolioSalesperson {
