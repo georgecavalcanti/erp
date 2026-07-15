@@ -46,7 +46,7 @@ class SituationReport
   private
 
   def portfolio_scope
-    scope = PendingOrder.all
+    scope = @analytics.authorize(PendingOrder.all) # recorte RBAC antes dos filtros
     scope = scope.where(company_id: @analytics.company_id) if @analytics.company_id
     scope = scope.where(salesperson_id: @analytics.salesperson_ids) if @analytics.salesperson_ids.any?
     scope = scope.where(partner_id: @analytics.partner_ids) if @analytics.partner_ids.any?
@@ -104,14 +104,14 @@ class SituationReport
   end
 
   def filtered_titles
-    scope = OverdueTitle.all
+    scope = @analytics.authorize(OverdueTitle.all) # recorte RBAC antes dos filtros
     scope = scope.where(salesperson_id: @analytics.salesperson_ids) if @analytics.salesperson_ids.any?
     scope = scope.where(partner_id: @analytics.partner_ids) if @analytics.partner_ids.any?
     scope
   end
 
   def delinquency_scope
-    scope = Delinquency.all
+    scope = @analytics.authorize(Delinquency.all) # recorte RBAC antes dos filtros
     scope = scope.where(salesperson_id: @analytics.salesperson_ids) if @analytics.salesperson_ids.any?
     scope
   end

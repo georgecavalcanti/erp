@@ -11,7 +11,15 @@ class ApplicationController < ActionController::Base
   inertia_share do
     {
       auth: {
-        user: Current.user && { id: Current.user.id, email: Current.user.email_address }
+        # role + flags de capacidade alimentam a navegação por perfil (AppLayout).
+        user: Current.user && {
+          id: Current.user.id,
+          email: Current.user.email_address,
+          name: Current.user.display_name,
+          role: Current.user.role,
+          isAdmin: Current.user.admin?,
+          managesCommercial: Current.user.manages_commercial?
+        }
       },
       flash: {
         notice: flash.notice,

@@ -10,7 +10,7 @@ class PortfolioReport
   # com o mesmo recorte dos KPIs/gráficos.
   def pending_orders
     @pending_orders ||= begin
-      scope = PendingOrder.all
+      scope = @analytics.authorize(PendingOrder.all) # recorte RBAC antes dos filtros
       scope = scope.where(company_id: @analytics.company_id) if @analytics.company_id
       scope = scope.where(salesperson_id: @analytics.salesperson_ids) if @analytics.salesperson_ids.any?
       scope = scope.where(partner_id: @analytics.partner_ids) if @analytics.partner_ids.any?

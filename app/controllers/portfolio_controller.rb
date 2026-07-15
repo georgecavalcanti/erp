@@ -18,8 +18,9 @@ class PortfolioController < ApplicationController
       orders: orders.map { |o| serialize_order(o) },
       pagination: { page: page, per: PER_PAGE, total: total, pages: (total.to_f / PER_PAGE).ceil },
       filters: applied_filters,
-      # Só vendedores/parceiros/empresas que têm carteira (não a lista global).
-      filterOptions: Analytics.filter_options_scoped(PendingOrder.all)
+      # Só vendedores/parceiros/empresas que têm carteira (não a lista global),
+      # já recortados pelo escopo RBAC do usuário.
+      filterOptions: Analytics.filter_options_scoped(analytics.authorize(PendingOrder.all))
     }
   end
 

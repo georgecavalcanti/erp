@@ -12,8 +12,9 @@ class ReceivablesController < ApplicationController
       byPartner: report.by_partner,
       byDueMonth: report.by_due_month,
       filters: applied_filters,
-      # Só vendedores/parceiros que têm inadimplência (OverdueTitle não tem empresa).
-      filterOptions: Analytics.filter_options_scoped(OverdueTitle.all, company: false)
+      # Só vendedores/parceiros que têm inadimplência (OverdueTitle não tem empresa),
+      # já recortados pelo escopo RBAC do usuário.
+      filterOptions: Analytics.filter_options_scoped(analytics.authorize(OverdueTitle.all), company: false)
     }
   end
 end

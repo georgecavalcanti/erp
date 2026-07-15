@@ -75,7 +75,7 @@ class DelinquencyReport
   # OverdueTitle filtrado por vendedor + parceiro. Período não entra: inadimplência
   # é o conjunto de títulos vencidos em aberto AGORA, não um recorte histórico.
   def filtered_titles
-    scope = OverdueTitle.all
+    scope = @analytics.authorize(OverdueTitle.all) # recorte RBAC antes dos filtros
     scope = scope.where(salesperson_id: @analytics.salesperson_ids) if @analytics.salesperson_ids.any?
     scope = scope.where(partner_id: @analytics.partner_ids) if @analytics.partner_ids.any?
     scope
@@ -83,7 +83,7 @@ class DelinquencyReport
 
   # Fallback: resumo por vendedor (Delinquency) só responde ao filtro de vendedor.
   def delinquency_scope
-    scope = Delinquency.all
+    scope = @analytics.authorize(Delinquency.all) # recorte RBAC antes dos filtros
     scope = scope.where(salesperson_id: @analytics.salesperson_ids) if @analytics.salesperson_ids.any?
     scope
   end

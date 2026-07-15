@@ -1,5 +1,10 @@
 class Salesperson < ApplicationRecord
   has_many :invoices, dependent: :restrict_with_error
+  has_many :wallets, dependent: :destroy
+  has_many :partners, through: :wallets
+  has_many :goals, dependent: :destroy
+  # Login FV360 vinculado a este vendedor do ERP (RBAC). No máximo um.
+  has_one :user, dependent: :nullify
 
   validates :external_code, presence: true, uniqueness: true
   validates :nickname, presence: true

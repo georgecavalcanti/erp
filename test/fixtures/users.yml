@@ -1,9 +1,13 @@
 <% password_digest = BCrypt::Password.create("password") %>
 
+# Usuários genéricos dos testes de auth. Perfil administrador (como o admin do
+# seed): irrestrito e sem exigência de vínculo com vendedor (needs_salesperson?).
 one:
   email_address: one@example.com
   password_digest: <%= password_digest %>
+  role: administrador
 
 two:
   email_address: two@example.com
   password_digest: <%= password_digest %>
+  role: administrador

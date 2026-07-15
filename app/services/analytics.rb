@@ -8,14 +8,29 @@ class Analytics
   # aplica o mesmo recorte à carteira/inadimplência).
   attr_reader :year, :months, :company_id, :salesperson_ids, :partner_ids
 
-  def initialize(period: nil, year: nil, months: nil, company_id: nil, salesperson_ids: nil, partner_ids: nil, as_of: Date.current)
+  # authorized_salesperson_ids: LIMITE de segurança (RBAC). nil = irrestrito;
+  # [] = não vê nada (fail-closed); [..] = recorta. Vem do AccessPolicy no
+  # controller — NUNCA do cliente. Aplicado a TODA leitura via #authorize.
+  def initialize(period: nil, year: nil, months: nil, company_id: nil, salesperson_ids: nil, partner_ids: nil,
+                 authorized_salesperson_ids: nil, as_of: Date.current)
     @period = period
     @year = presence(year)&.to_i
     @months = int_list(months).select { |m| m.between?(1, 12) }
     @company_id = presence(company_id)
     @salesperson_ids = int_list(salesperson_ids)
     @partner_ids = expand_partner_ids(int_list(partner_ids))
+    @authorized_salesperson_ids = authorized_salesperson_ids
     @as_of = as_of
+  end
+
+  # Aplica o escopo de autorização a QUALQUER relation com salesperson_id (notas,
+  # pedidos, títulos, carteira…). É o limite de segurança — sempre aplicado,
+  # independentemente do filtro que o cliente mandou (nunca confiar no cliente).
+  #   nil = irrestrito (não recorta) · [] = não vê nada · [..] = só esses vendedores
+  def authorize(scope, key: :salesperson_id)
+    return scope if @authorized_salesperson_ids.nil?
+
+    scope.where(key => @authorized_salesperson_ids)
   end
 
   # KPIs do topo do painel.
@@ -122,6 +137,24 @@ class Analytics
     scope
   end
 
+  # filter_options recortado pelo escopo do usuário (o dropdown não pode vazar
+  # vendedores/clientes de fora da carteira). Irrestrito cai no global.
+  def self.filter_options_for(access)
+    return filter_options if access.unrestricted?
+
+    seller_ids = access.authorized_salesperson_ids || []
+    partner_ids = access.authorized_partner_ids || []
+    {
+      years: Invoice.where(salesperson_id: seller_ids).distinct
+                    .pluck(Arel.sql("EXTRACT(YEAR FROM negotiation_date)::int")).compact.sort.reverse,
+      companies: Company.order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } },
+      salespeople: Salesperson.where(id: seller_ids).order(:nickname).pluck(:id, :nickname)
+                              .map { |id, name| { id: id, name: name } },
+      partners: Partner.where(id: partner_ids).group(:name).minimum(:id)
+                       .map { |name, id| { id: id, name: name } }.sort_by { |p| p[:name] }
+    }
+  end
+
   # Opções para os filtros (dropdowns).
   def self.filter_options
     {
@@ -150,7 +183,8 @@ class Analytics
 
   def base
     # confirmed_only: relatórios contam só notas liberadas (STATUSNOTA='L'), como a Situação.
-    scope = within_period(Invoice.confirmed_only)
+    # authorize: recorte de segurança RBAC ANTES de qualquer filtro do cliente.
+    scope = authorize(within_period(Invoice.confirmed_only))
     scope = scope.where(company_id: @company_id) if @company_id
     scope = scope.where(salesperson_id: @salesperson_ids) if @salesperson_ids.any?
     scope = scope.where(partner_id: @partner_ids) if @partner_ids.any?

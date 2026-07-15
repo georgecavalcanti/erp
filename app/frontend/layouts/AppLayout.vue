@@ -56,6 +56,20 @@ const NAV = [
   { label: 'Devoluções', href: '/devolucoes' },
 ]
 
+// Navegação de administração por perfil (doc 07): gestor/admin gerem carteiras e
+// metas; só o admin gere usuários. As flags vêm do inertia_share.
+const adminNav = computed(() => {
+  const u = user.value as { isAdmin?: boolean; managesCommercial?: boolean } | null
+  if (!u) return [] as { label: string; href: string }[]
+  const items: { label: string; href: string }[] = []
+  if (u.managesCommercial) {
+    items.push({ label: 'Carteiras', href: '/admin/carteiras' })
+    items.push({ label: 'Metas', href: '/admin/metas' })
+  }
+  if (u.isAdmin) items.push({ label: 'Usuários', href: '/admin/usuarios' })
+  return items
+})
+
 function isActive(item: { href: string; exact?: boolean }) {
   return item.exact ? currentPath.value === item.href : currentPath.value.startsWith(item.href)
 }
@@ -79,6 +93,19 @@ function isActive(item: { href: string; exact?: boolean }) {
           >
             {{ item.label }}
           </Link>
+
+          <div v-if="adminNav.length" class="mt-4 border-t border-slate-200 pt-4">
+            <p class="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Administração</p>
+            <Link
+              v-for="item in adminNav"
+              :key="item.href"
+              :href="item.href"
+              class="block rounded-lg px-3 py-2 text-sm font-medium transition"
+              :class="isActive(item) ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'"
+            >
+              {{ item.label }}
+            </Link>
+          </div>
         </nav>
       </aside>
 
@@ -127,7 +154,7 @@ function isActive(item: { href: string; exact?: boolean }) {
         <!-- Nav mobile -->
         <nav class="flex gap-1 overflow-x-auto border-b border-slate-200 bg-white px-4 py-2 lg:hidden">
           <Link
-            v-for="item in NAV"
+            v-for="item in [...NAV, ...adminNav]"
             :key="item.href"
             :href="item.href"
             class="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium"

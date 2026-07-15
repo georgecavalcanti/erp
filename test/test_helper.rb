@@ -1,6 +1,13 @@
+# Testes em paralelo forkam workers (parallelize). No macOS, o libpq carrega o
+# GSS.framework (Objective-C, que não é fork-safe) na 1ª conexão — o fork depois
+# disso faz o pg segfaultar em connect_start. Desligar o GSS ANTES de qualquer
+# conexão (precisa vir antes de carregar o environment) evita o crash. Só teste.
+ENV["PGGSSENCMODE"] ||= "disable"
+
 ENV["RAILS_ENV"] ||= "test"
 require_relative "../config/environment"
 require "rails/test_help"
+require "inertia_rails/minitest" # assert_inertia_component / inertia.props nos testes de tela
 require_relative "test_helpers/session_test_helper"
 
 module ActiveSupport

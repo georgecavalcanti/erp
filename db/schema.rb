@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_15_170001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_15_180003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -36,6 +36,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_170001) do
     t.index ["import_batch_id"], name: "index_delinquencies_on_import_batch_id"
     t.index ["salesperson_id"], name: "index_delinquencies_on_salesperson_id"
     t.index ["salesperson_label"], name: "index_delinquencies_on_salesperson_label"
+  end
+
+  create_table "goals", force: :cascade do |t|
+    t.decimal "amount", precision: 15, scale: 2
+    t.jsonb "complementary", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.integer "kind", default: 0, null: false
+    t.decimal "min_margin_percent", precision: 7, scale: 4
+    t.date "period", null: false
+    t.bigint "salesperson_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_goals_on_created_by_id"
+    t.index ["period"], name: "index_goals_on_period"
+    t.index ["salesperson_id", "period", "kind"], name: "index_goals_on_salesperson_id_and_period_and_kind", unique: true
+    t.index ["salesperson_id"], name: "index_goals_on_salesperson_id"
   end
 
   create_table "import_batches", force: :cascade do |t|
@@ -422,15 +438,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_170001) do
   end
 
   create_table "users", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.string "email_address", null: false
+    t.bigint "manager_id"
+    t.string "name"
     t.string "password_digest", null: false
+    t.integer "role", default: 0, null: false
+    t.bigint "salesperson_id"
     t.datetime "updated_at", null: false
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
+    t.index ["manager_id"], name: "index_users_on_manager_id"
+    t.index ["salesperson_id"], name: "index_users_on_salesperson_id"
+    t.index ["salesperson_id"], name: "index_users_unique_salesperson", unique: true, where: "(salesperson_id IS NOT NULL)"
+  end
+
+  create_table "wallets", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.date "ends_on"
+    t.bigint "partner_id", null: false
+    t.string "region"
+    t.integer "responsibility_type", default: 0, null: false
+    t.bigint "salesperson_id", null: false
+    t.date "starts_on"
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_wallets_on_created_by_id"
+    t.index ["partner_id"], name: "index_wallets_on_partner_id"
+    t.index ["partner_id"], name: "index_wallets_unique_active_partner", unique: true, where: "(ends_on IS NULL)"
+    t.index ["salesperson_id", "partner_id"], name: "index_wallets_on_salesperson_id_and_partner_id"
+    t.index ["salesperson_id"], name: "index_wallets_on_salesperson_id"
   end
 
   add_foreign_key "delinquencies", "import_batches"
   add_foreign_key "delinquencies", "salespeople"
+  add_foreign_key "goals", "salespeople"
+  add_foreign_key "goals", "users", column: "created_by_id"
   add_foreign_key "import_batches", "users"
   add_foreign_key "invoice_items", "invoices"
   add_foreign_key "invoice_items", "products"
@@ -457,4 +500,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_170001) do
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "users", "salespeople"
+  add_foreign_key "users", "users", column: "manager_id"
+  add_foreign_key "wallets", "partners"
+  add_foreign_key "wallets", "salespeople"
+  add_foreign_key "wallets", "users", column: "created_by_id"
 end

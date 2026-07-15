@@ -83,17 +83,17 @@ Executada em duas partes: **2A** (itens+custo+margem, feita) e **2B** (pedidos c
 
 **Escopo PDF**: autenticação ✔ · **permissões; carteiras; metas; indicadores básicos**.
 
-- [ ] Migration `users`: role, salesperson_id, manager_id, active
-- [ ] Migrations `wallets` + `goals` (doc 04)
-- [ ] Policies de escopo (`authorized_salesperson_ids` / `authorized_partner_ids`) + integração no `analytics_filters.rb` (doc 07)
-- [ ] Carga inicial de carteiras a partir do CODVEND do parceiro no Sankhya
-- [ ] CRUD de usuários, carteiras e metas (telas de administração, perfil gestor/admin)
-- [ ] Aplicar escopo às telas existentes (Dashboard, Situação, Carteira, Inadimplência…)
-- [ ] Navegação por perfil no `AppLayout.vue`
-- [ ] **Testes de segurança: isolamento entre vendedores** (vendedor A nunca vê dados de B) — obrigatório
-- [ ] Convite/criação de usuários vendedores (sem auto-registro)
+- [x] Migration `users`: role, salesperson_id, manager_id, active (+ `name`; enum de 6 perfis; default vendedor = menor privilégio; admin existente elevado no data step)
+- [x] Migrations `wallets` + `goals` (doc 04) — carteira com vigência (índice parcial único: 1 dono vigente por parceiro) e meta única por (vendedor, mês, tipo)
+- [x] Policies de escopo (`AccessPolicy#authorized_salesperson_ids` / `authorized_partner_ids`) + integração no `analytics_filters.rb` e `Analytics#authorize` (doc 07); `nil`=irrestrito, `[]`=fail-closed
+- [x] Carga inicial de carteiras a partir do CODVEND do parceiro no Sankhya — `WalletSeeder` + `rake wallets:seed` (4.799 carteiras, 81% dos parceiros)
+- [x] CRUD de usuários, carteiras e metas (telas admin em `Admin::*`, perfil gestor/admin; usuários só admin)
+- [x] Aplicar escopo às telas existentes (Dashboard, Situação, Carteira, Inadimplência, Vendedores, Parceiros, Devoluções) via `Analytics#authorize` nos reports
+- [x] Navegação por perfil no `AppLayout.vue` (seção Administração só p/ gestor/admin; flags via `inertia_share`)
+- [x] **Testes de segurança: isolamento entre vendedores** (vendedor A nunca vê dados de B) — 8 testes de tela + elevação de privilégio + `AccessControlTest` da administração
+- [x] Convite/criação de usuários vendedores (sem auto-registro) — `Admin::UsersController`, exige vínculo com Salesperson
 
-**Aceite**: critérios MVP 3 e 4 (isolamento de carteira; meta vinculada a vendedor/período corretos).
+**Aceite**: ✅ critérios MVP 3 e 4. Isolamento validado por testes (`WalletIsolationTest`: A forçando `salesperson_ids=B` vê 0) e no app real (vendedor vê só sua carteira, sem nav de administração); meta vinculada a vendedor/período (`period` normalizado ao 1º do mês, `created_by` registrado). `bin/ci` verde (75 testes).
 
 ## Sprint 4 — Cockpit: realizado, ritmo, gap e cenários
 
