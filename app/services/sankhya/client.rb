@@ -78,7 +78,7 @@ module Sankhya
       raise AuthError, "Resposta de auth sem access_token: #{truncate(res.body)}" if @token.to_s.empty?
 
       ttl = Integer(data["expires_in"] || 3600) - @config.token_safety_margin
-      @token_expires_at = Time.current + [ttl, 30].max
+      @token_expires_at = Time.current + [ ttl, 30 ].max
       @token
     rescue JSON::ParserError => e
       raise AuthError, "Resposta de auth não é JSON: #{e.message}"

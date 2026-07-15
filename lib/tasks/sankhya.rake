@@ -159,6 +159,39 @@ namespace :sankhya do
     exit 1
   end
 
+  desc "DRY-RUN catálogo de produtos (TGFPRO+TGFGRU) — só lê, mostra amostra"
+  task products_dry: :environment do
+    r = Sankhya::ProductSync.new.call(dry_run: true)
+    puts "produtos: #{r[:rows]} linhas lidas. Amostra:"
+    r[:sample].each { |s| puts "  #{s.slice(:external_code, :description, :category_name, :unit, :active).inspect}" }
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
+
+  desc "Sincroniza o catálogo de produtos -> Product (upsert por CODPROD)."
+  task products: :environment do
+    r = Sankhya::ProductSync.new.call
+    puts "produtos: #{r[:rows]} lidos — #{r[:imported]} novos, #{r[:updated]} atualizados, #{r[:skipped]} pulados"
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
+
+  desc "Sync manual de CADASTROS (produtos+parceiros+vendedores). No dia a dia roda pelo Solid Queue — ver SankhyaCatalogSyncJob."
+  task sync_catalog: :environment do
+    r = Sankhya::CatalogSync.call
+    if r[:skipped]
+      warn "sync_catalog: outra execução em andamento (advisory lock ocupado) — pulando esta rodada."
+      next
+    end
+    r[:results].each { |label, res| puts "#{label}: #{res.except(:sample).inspect}" }
+    unless r[:errors].empty?
+      warn "sync_catalog terminou com #{r[:errors].size} falha(s): #{r[:errors].join(' | ')}"
+      exit 1
+    end
+  end
+
   desc "Sync manual (mesma lógica do agendado). No dia a dia roda pelo Solid Queue — ver config/recurring.yml e SankhyaSyncJob."
   task sync: :environment do
     r = Sankhya::ScheduledSync.call
@@ -183,12 +216,13 @@ namespace :sankhya do
 
     db = ActiveRecord::Base.connection.current_database
     puts "→ Alvo: banco '#{db}' (#{Rails.env}). LIMPANDO e repopulando pela API..."
-    tables = %w[invoices pending_orders overdue_titles delinquencies partners salespeople companies import_batches]
+    tables = %w[invoices pending_orders overdue_titles delinquencies products partners salespeople companies import_batches]
     ActiveRecord::Base.connection.execute("TRUNCATE #{tables.join(', ')} RESTART IDENTITY")
     puts "  ✓ banco limpo (usuários preservados)."
 
     r = Sankhya::InvoiceSync.new(since: nil).call
     puts "  ✓ notas: #{r[:rows]} lidas (#{r[:imported]} novas, #{r[:skipped]} puladas)"
+    Sankhya::CatalogSync.call[:results].each { |label, res| puts "  ✓ #{label.downcase}: #{res[:rows]} lidos" }
     r = Sankhya::PendingOrderSync.new.call
     puts "  ✓ carteira: #{r[:rows]} pedidos (R$ #{r[:total]})"
     r = Sankhya::OverdueTitleSync.new.call

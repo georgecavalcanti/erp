@@ -37,10 +37,10 @@ class PaymentTermsParser
   private
 
   def parse_offsets
-    return [0] if @raw.match?(CASH_REGEX)
+    return [ 0 ] if @raw.match?(CASH_REGEX)
 
     nums = @raw.scan(/\d+/).map(&:to_i).select(&:positive?)
-    return [0] if nums.empty? # sem prazo reconhecido -> trata como à vista
+    return [ 0 ] if nums.empty? # sem prazo reconhecido -> trata como à vista
 
     nums.uniq.sort
   end

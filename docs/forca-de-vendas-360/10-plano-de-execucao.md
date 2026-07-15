@@ -41,14 +41,16 @@ Sessão de trabalho com o responsável Sankhya (não é sprint de código):
 
 **Escopo PDF**: OAuth Sankhya ✔ (existe) · clientes ✔ (enriquecer) · vendedores ✔ · **produtos** (novo).
 
-- [ ] Migration + model `Product` (doc 04)
-- [ ] `Sankhya::ProductSync` (upsert por CODPROD; padrão do `InvoiceSync`)
-- [ ] Enriquecer `partners`: cnpj, cidade, UF, segmento, situação (ampliar query do sync de dimensões)
-- [ ] Campos `active`/`email` em `salespeople`
-- [ ] Task `sankhya:backfill_products` + agendamento 2h em `config/recurring.yml`
-- [ ] Testes: sync de produtos (fixture de payload), idempotência do upsert
+- [x] Migration + model `Product` (doc 04)
+- [x] `Sankhya::ProductSync` (upsert por CODPROD; padrão do `InvoiceSync`)
+- [x] Enriquecer `partners`: cnpj, cidade, UF, segmento, ativo/bloqueado, última negociação — via `Sankhya::PartnerSync` dedicado (todos os clientes, inclusive quem nunca comprou; `raw.CODVEND` pronto p/ seed de carteiras)
+- [x] Campos `active`/`email`/`seller_kind` em `salespeople` — via `Sankhya::SalespersonSync`
+- [x] `Sankhya::CatalogSync` (orquestrador + advisory lock próprio) + `SankhyaCatalogSyncJob` a cada 2h em `config/recurring.yml` + tasks `sankhya:products`, `sankhya:products_dry`, `sankhya:sync_catalog`
+- [x] Testes: 12 testes de sync (mapeamento, idempotência, paginação keyset, linha inválida, dry-run) com `FakeSankhyaClient`
+- [x] Extra: `partners.external_code` int4→bigint — 42 clientes reais com CODPARC de 10 dígitos eram pulados pelo sync (sem notas históricas perdidas; eram prospects sem compra)
+- [x] Extra: consertados 3 testes legados de senha (assert_select em página Inertia) e ofensas rubocop pré-existentes — `bin/ci` 100% verde
 
-**Aceite**: catálogo completo espelhado; parceiros com CNPJ/cidade/segmento; `sync_runs` registrando.
+**Aceite**: ✅ 15/07/2026 — catálogo 3.249/3.249 produtos espelhado (100% com categoria); 5.939/5.939 clientes com CNPJ/cidade/UF; 60 vendedores com tipo/ativo; `sync_runs` registrando ("Produtos/Parceiros/Vendedores"); `bin/ci` verde.
 
 ## Sprint 2 — Pedidos, itens, notas com itens, custos e margem
 

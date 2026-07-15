@@ -13,8 +13,9 @@ class PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_enqueued_email_with PasswordsMailer, :reset, args: [ @user ]
     assert_redirected_to new_session_path
 
-    follow_redirect!
-    assert_notice "reset instructions sent"
+    # Login é página Inertia: o flash vai por props (FlashMessages.vue), não no
+    # HTML server-side — asserta o flash direto em vez de assert_select.
+    assert_match(/reset instructions sent/, flash[:notice])
   end
 
   test "create for an unknown user redirects but sends no mail" do
@@ -22,8 +23,7 @@ class PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_enqueued_emails 0
     assert_redirected_to new_session_path
 
-    follow_redirect!
-    assert_notice "reset instructions sent"
+    assert_match(/reset instructions sent/, flash[:notice])
   end
 
   test "edit" do
@@ -45,8 +45,7 @@ class PasswordsControllerTest < ActionDispatch::IntegrationTest
       assert_redirected_to new_session_path
     end
 
-    follow_redirect!
-    assert_notice "Password has been reset"
+    assert_match(/Password has been reset/, flash[:notice])
   end
 
   test "update with non matching passwords" do

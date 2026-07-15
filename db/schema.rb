@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_09_210309) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_15_150001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -124,10 +124,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_210309) do
   end
 
   create_table "partners", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.string "block_reason"
+    t.boolean "blocked", default: false, null: false
+    t.string "city"
+    t.string "cnpj"
     t.datetime "created_at", null: false
-    t.integer "external_code", null: false
+    t.bigint "external_code", null: false
+    t.date "last_negotiation_on"
     t.string "name", null: false
+    t.jsonb "raw", default: {}, null: false
+    t.string "segment"
+    t.string "state"
     t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_partners_on_active"
+    t.index ["cnpj"], name: "index_partners_on_cnpj"
     t.index ["external_code"], name: "index_partners_on_external_code", unique: true
     t.index ["name"], name: "index_partners_on_name"
   end
@@ -162,11 +173,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_210309) do
     t.index ["salesperson_id"], name: "index_pending_orders_on_salesperson_id"
   end
 
-  create_table "salespeople", force: :cascade do |t|
+  create_table "products", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.string "brand"
+    t.bigint "category_external_code"
+    t.string "category_name"
     t.datetime "created_at", null: false
+    t.decimal "current_cost", precision: 15, scale: 5
+    t.string "description", null: false
+    t.bigint "external_code", null: false
+    t.string "ncm"
+    t.jsonb "raw", default: {}, null: false
+    t.string "reference"
+    t.string "unit"
+    t.datetime "updated_at", null: false
+    t.string "usage"
+    t.index ["active"], name: "index_products_on_active"
+    t.index ["category_external_code"], name: "index_products_on_category_external_code"
+    t.index ["external_code"], name: "index_products_on_external_code", unique: true
+  end
+
+  create_table "salespeople", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.string "email"
     t.integer "external_code", null: false
     t.string "nickname", null: false
+    t.jsonb "raw", default: {}, null: false
+    t.string "seller_kind"
     t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_salespeople_on_active"
     t.index ["external_code"], name: "index_salespeople_on_external_code", unique: true
     t.index ["nickname"], name: "index_salespeople_on_nickname"
   end
