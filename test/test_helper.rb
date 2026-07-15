@@ -6,6 +6,13 @@ ENV["PGGSSENCMODE"] ||= "disable"
 
 ENV["RAILS_ENV"] ||= "test"
 require_relative "../config/environment"
+
+# Compila os assets do Vite UMA vez no processo pai, ANTES de o parallelize forkar
+# os workers. Sem isto, o 1º render Inertia de cada worker dispara o auto_build do
+# Vite em paralelo e um worker às vezes lê o manifest a meio ("Vite Ruby can't
+# find ... in the manifests"). Guardado por digest: no-op quando os fontes não mudam.
+ViteRuby.commands.build if defined?(ViteRuby)
+
 require "rails/test_help"
 require "inertia_rails/minitest" # assert_inertia_component / inertia.props nos testes de tela
 require_relative "test_helpers/session_test_helper"

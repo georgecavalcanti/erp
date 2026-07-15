@@ -80,6 +80,33 @@ module Admin
       assert_equal @admin.id, goal.created_by_id
     end
 
+    test "admin não pode se auto-rebaixar (self-lockout)" do
+      sign_in_as(@admin)
+
+      patch admin_usuario_path(@admin), params: { role: "gestor_comercial" }
+
+      assert_redirected_to edit_admin_usuario_path(@admin)
+      assert @admin.reload.role_administrador? # inalterado
+    end
+
+    test "admin não pode se auto-desativar" do
+      sign_in_as(@admin)
+
+      patch admin_usuario_path(@admin), params: { active: "false" }
+
+      assert_redirected_to edit_admin_usuario_path(@admin)
+      assert @admin.reload.active
+    end
+
+    test "admin pode rebaixar OUTRO administrador" do
+      other = User.create!(email_address: "o@x.com", password: "secret123", role: :administrador)
+      sign_in_as(@admin)
+
+      patch admin_usuario_path(other), params: { role: "gestor_comercial" }
+
+      assert other.reload.role_gestor_comercial?
+    end
+
     test "transferência de carteira fecha a vigente e registra o autor" do
       sign_in_as(@admin)
       partner = Partner.create!(external_code: 5555, name: "CLIENTE X")

@@ -33,6 +33,10 @@ module Admin
       # Senha é opcional na edição: só troca se preenchida.
       attrs = user_params
       attrs = attrs.except(:password) if attrs[:password].blank?
+      if self_lockout?(attrs)
+        return redirect_to edit_admin_usuario_path(@user),
+                           alert: "Você não pode remover o próprio acesso de administrador."
+      end
       if @user.update(attrs)
         redirect_to admin_usuarios_path, notice: "Usuário atualizado."
       else
@@ -55,6 +59,16 @@ module Admin
       return if Current.user&.admin?
 
       redirect_to root_path, alert: "Acesso restrito ao administrador."
+    end
+
+    # Impede o admin logado de se auto-rebaixar ou desativar (mesmo espírito do
+    # bloqueio de auto-remoção no destroy) — evita ficar sem acesso à gestão.
+    def self_lockout?(attrs)
+      return false unless @user == Current.user
+
+      demoting = attrs.key?(:role) && attrs[:role].to_s != "administrador"
+      deactivating = attrs.key?(:active) && ActiveModel::Type::Boolean.new.cast(attrs[:active]) == false
+      demoting || deactivating
     end
 
     def set_user
