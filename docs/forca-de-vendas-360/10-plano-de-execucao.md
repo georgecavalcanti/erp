@@ -24,15 +24,16 @@ O repositório hoje é o "Jatto Dash" (BI read-only sobre o Sankhya). Este plano
 
 Sessão de trabalho com o responsável Sankhya (não é sprint de código):
 
-- [ ] Validar tabelas/campos reais: TGFPRO, TGFGRU, TGFITE, TGFEST, TGFCUS, TGFTAB/TGFEXC, crédito em TGFPAR (checklist no doc 03, seção Fase 0)
-- [ ] Confirmar TOPs de pedido/venda/devolução/cancelamento em uso
-- [ ] Medir volumetria de 24 meses de itens (dimensionar backfill/índices)
-- [ ] Confirmar permissões do usuário de integração e limites do gateway
-- [ ] Levantar como metas e carteiras são geridas hoje (planilha? ERP?) para a carga inicial
-- [ ] Registrar tudo em `docs/forca-de-vendas-360/fase-0-diagnostico.md`
-- [ ] Atualizar `README.md` do repo (remover menções ao import de planilha, refletir API-only)
+- [x] Validar tabelas/campos reais: TGFPRO, TGFGRU, TGFITE, TGFEST, TGFCUS, TGFTAB/TGFEXC, crédito em TGFPAR (checklist no doc 03, seção Fase 0)
+- [x] Confirmar TOPs de pedido/venda/devolução/cancelamento em uso — **descoberta: TOP 1000 = cotações (orçamentos de venda)**
+- [x] Medir volumetria de itens — ~961 mil itens; **histórico real começa em dez/2024 (~19 meses, não 24)**
+- [x] Confirmar permissões do usuário de integração (todas as tabelas acessíveis; rate limit: validar em produção contínua — pendência leve)
+- [x] Levantar como metas e carteiras são geridas hoje — **TGFMET vazia (metas fora do ERP → geridas no FV360); carteiras via TGFPAR.CODVEND (81% preenchido)**
+- [x] Registrar tudo em `docs/forca-de-vendas-360/fase-0-diagnostico.md`
+- [x] Atualizar `README.md` do repo (remover menções ao import de planilha, refletir API-only)
+- [ ] Pendências humanas de `fase-0-diagnostico.md` §13 (validações com gestor comercial — não bloqueiam Sprints 1–2)
 
-**Aceite**: queries SQL de cada novo sync validadas manualmente no gateway (sandbox) retornando dados reais.
+**Aceite**: ✅ 15/07/2026 — queries de cada novo sync validadas no gateway de **produção** com dados reais. Decisões derivadas em `fase-0-diagnostico.md` (margem = `VLRTOT − VLRDESC − QTDNEG×CUSTO`; vendas por TOP explícita; crédito por inadimplência+bloqueio; cotações como nova entidade).
 
 ---
 
