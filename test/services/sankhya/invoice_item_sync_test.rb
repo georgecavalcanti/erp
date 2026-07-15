@@ -97,6 +97,61 @@ module Sankhya
       assert_equal 2, result[:sample].size
     end
 
+    # #1 — receita líquida quase-zero: o percentual estouraria numeric(7,4) e
+    # abortaria o UPDATE do lote inteiro. Deve gravar NULL sem levantar erro.
+    test "net quase-zero grava margin_percent NULL sem estourar o rollup" do
+      # net = 22.1 - 21.6 = 0.50; custo = 10 * 5 = 50 -> margem -49.5 -> -9900%
+      quase_zero = ITEM1.merge("VLRDESC" => 21.6, "CUSTO" => 5.0)
+      result = sync([ quase_zero ]).call
+
+      assert_equal 1, result[:upserted]
+      @invoice.reload
+      assert_nil @invoice.margin_percent               # guard ABS(net) < 1
+      assert_in_delta(-49.5, @invoice.margin_value, 0.01) # a margem em R$ ainda soma
+    end
+
+    # #1 — anomalia com net >= 1 (fora do guard) mas percentual fora da coluna:
+    # precisa ser clampado a ±999,9999 para caber em numeric(7,4).
+    test "margem anômala é clampada a -999,9999 sem estourar" do
+      # net = 22.1 - 20.1 = 2.0 (>=1); custo = 10 * 50 = 500 -> margem -498 -> -24900%
+      anomala = ITEM1.merge("VLRDESC" => 20.1, "CUSTO" => 50.0)
+      sync([ anomala ]).call
+
+      assert_in_delta(-999.9999, @invoice.reload.margin_percent, 0.0001)
+    end
+
+    # #2 — item retirado no ERP some do espelho no re-sync e a margem do pai é
+    # recomputada só com o que sobrou.
+    test "item removido do ERP é apagado no re-sync e a margem recomputada" do
+      sync([ ITEM1, ITEM2 ]).call
+      assert_equal 2, @invoice.invoice_items.count
+
+      result = sync([ ITEM1 ]).call # ITEM2 saiu do ERP
+
+      assert_equal 1, @invoice.invoice_items.count
+      assert_nil @invoice.invoice_items.find_by(external_sequence: 2)
+      assert_equal 1, result[:parents_touched]
+      @invoice.reload
+      assert_in_delta 11.45, @invoice.total_cost, 0.001   # só o item 1
+      assert_in_delta 3.35, @invoice.margin_value, 0.001
+    end
+
+    # #3 — re-sync não pode regravar created_at (senão a linha "renasce").
+    test "re-sync preserva created_at e avança updated_at" do
+      sync([ ITEM1 ]).call
+      item = @invoice.invoice_items.find_by(external_sequence: 1)
+      original_created = item.created_at
+
+      travel 1.hour do
+        sync([ ITEM1.merge("VLRDESC" => 0) ]).call
+      end
+
+      item.reload
+      assert_equal original_created.to_i, item.created_at.to_i # intacto
+      assert_operator item.updated_at, :>, item.created_at     # updated_at avançou
+      assert_in_delta 22.1, item.net_value, 0.001              # valor atualizado
+    end
+
     private
 
     def sync(rows)

@@ -18,7 +18,7 @@ module Sankhya
     end
 
     def call(dry_run: false)
-      imported = updated = skipped = seen = 0
+      imported = updated = unchanged = skipped = seen = 0
       sample = []
       after = -1 # CODPROD 0 pode existir como placeholder — inclui
 
@@ -33,7 +33,11 @@ module Sankhya
             next
           end
           begin
-            upsert(attrs) ? imported += 1 : updated += 1
+            case upsert(attrs)
+            when :imported  then imported += 1
+            when :updated   then updated += 1
+            when :unchanged then unchanged += 1
+            end
           rescue => e
             # Uma linha ruim não aborta o catálogo inteiro.
             skipped += 1
@@ -46,7 +50,7 @@ module Sankhya
         break if rows.size < @page_size
       end
 
-      { rows: seen, imported: imported, updated: updated, skipped: skipped, sample: sample }
+      { rows: seen, imported: imported, updated: updated, unchanged: unchanged, skipped: skipped, sample: sample }
     end
 
     private
@@ -81,13 +85,17 @@ module Sankhya
       }
     end
 
-    # true se criou produto novo, false se atualizou existente.
+    # :imported (produto novo), :updated (existia e mudou) ou :unchanged (existia
+    # e nada mudou — não infla a estatística de "updated", que antes contava toda
+    # linha existente como atualizada mesmo sem gravação).
     def upsert(attrs)
       product = Product.find_or_initialize_by(external_code: attrs[:external_code])
-      was_new = product.new_record?
+      new_record = product.new_record?
       product.assign_attributes(attrs.except(:external_code))
-      product.save! if product.changed?
-      was_new
+      return :unchanged unless new_record || product.changed?
+
+      product.save!
+      new_record ? :imported : :updated
     end
   end
 end

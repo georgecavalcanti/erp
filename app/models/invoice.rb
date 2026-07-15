@@ -57,6 +57,10 @@ class Invoice < ApplicationRecord
   end
 
   # Margem com sinal (mesma convenção de signed_value): devolução reverte a margem.
+  # TODO(Sprint 4+): ao LIGAR margem nos analytics, agregar sempre por
+  # signed_margin (não margin_value cru). Senão a margem das devoluções entra
+  # positiva e infla o total — o mesmo erro que signed_value evita no faturamento
+  # líquido. Hoje ninguém consome margem ainda, por isso é só um lembrete.
   def signed_margin
     return nil if margin_value.nil?
 

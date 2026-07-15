@@ -36,6 +36,17 @@ module Sankhya
       assert_nil @p1.reload.current_cost
     end
 
+    # #4 — DTATUAL empatada no mesmo dia tornaria o custo não-determinístico.
+    # O page_sql precisa escolher UMA linha por produto de forma estável
+    # (ROW_NUMBER PARTITION BY CODPROD ORDER BY DTATUAL DESC, CUSGER DESC).
+    test "page_sql desempata de forma determinística (uma linha por produto)" do
+      sql = Sankhya::CostSync.new(client: fake([])).send(:page_sql, after: 0, limit: 10)
+
+      assert_match(/ROW_NUMBER\(\)\s+OVER/i, sql)
+      assert_match(/PARTITION BY CUS\.CODPROD ORDER BY CUS\.DTATUAL DESC, CUS\.CUSGER DESC/i, sql)
+      assert_match(/WHERE RN = 1/i, sql)
+    end
+
     private
 
     def fake(rows)

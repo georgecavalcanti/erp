@@ -42,13 +42,24 @@ module Sankhya
       assert_not Product.find_by!(external_code: 161).active
     end
 
-    test "é idempotente: segunda execução atualiza em vez de duplicar" do
+    test "é idempotente: segunda execução não duplica nem infla 'updated'" do
       ProductSync.new(client: fake([ ROW_ATIVO ])).call
       result = ProductSync.new(client: fake([ ROW_ATIVO ])).call
 
       assert_equal 0, result[:imported]
-      assert_equal 1, result[:updated]
+      assert_equal 0, result[:updated]   # linha idêntica NÃO conta como atualizada (#7)
+      assert_equal 1, result[:unchanged]
       assert_equal 1, Product.where(external_code: 1_815_627_910).count
+    end
+
+    test "mudança real conta como updated (não unchanged)" do
+      ProductSync.new(client: fake([ ROW_ATIVO ])).call
+      result = ProductSync.new(client: fake([ ROW_ATIVO.merge("DESCRPROD" => "REFIL MOP NOVO") ])).call
+
+      assert_equal 0, result[:imported]
+      assert_equal 1, result[:updated]
+      assert_equal 0, result[:unchanged]
+      assert_equal "REFIL MOP NOVO", Product.find_by!(external_code: 1_815_627_910).description
     end
 
     test "pagina por keyset até esgotar as linhas" do

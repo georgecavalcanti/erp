@@ -24,6 +24,10 @@ module Sankhya
       seen = upserted = skipped_no_parent = 0
       sample = []
       touched = Set.new
+      # Sequências vistas por pai NESTE run — base do prune de itens que sumiram
+      # do ERP. A query traz TODOS os itens de um cabeçalho casado, então o
+      # conjunto por pai fica completo (ver #prune_removed).
+      seen_sequences = Hash.new { |h, k| h[k] = Set.new }
       after_nunota = 0
       after_seq = 0
 
@@ -44,12 +48,18 @@ module Sankhya
           end
           attrs = build_attrs(row, parent_id, product_ids[row["CODPROD"].to_i], now)
           touched << parent_id
+          seen_sequences[parent_id] << attrs[:external_sequence]
           sample << attrs.slice(:external_sequence, :net_value, :total_cost, :margin_value) if dry_run && sample.size < 5
           attrs
         end
 
         unless dry_run || records.empty?
-          item_class.upsert_all(records, unique_by: [ parent_fk, :external_sequence ])
+          # upsert_all pula as validações do model DE PROPÓSITO: o dado do ERP é
+          # confiável e já normalizado em build_attrs, e o lote (até 2000 linhas)
+          # não comporta instanciar/validar cada item. on_duplicate preserva o
+          # created_at original — sem ele o re-sync "renasceria" a linha.
+          item_class.upsert_all(records, unique_by: [ parent_fk, :external_sequence ],
+                                         on_duplicate: on_duplicate_clause(records.first))
           upserted += records.size
         end
 
@@ -59,7 +69,10 @@ module Sankhya
         break if rows.size < @page_size
       end
 
-      rollup(touched) unless dry_run
+      unless dry_run
+        prune_removed(seen_sequences) # tira itens que sumiram do ERP ANTES de somar
+        rollup(touched)
+      end
       { rows: seen, upserted: upserted, parents_touched: touched.size, skipped_no_parent: skipped_no_parent, sample: sample }
     end
 
@@ -126,9 +139,37 @@ module Sankhya
       }
     end
 
+    # ON CONFLICT DO UPDATE de todas as colunas do payload MENOS a chave natural
+    # e created_at: o re-sync atualiza valores e updated_at, mas mantém a data de
+    # criação original da linha.
+    def on_duplicate_clause(sample_record)
+      conn = item_class.connection
+      cols = sample_record.keys - [ parent_fk, :external_sequence, :created_at ]
+      Arel.sql(cols.map { |c| "#{conn.quote_column_name(c)} = excluded.#{conn.quote_column_name(c)}" }.join(", "))
+    end
+
+    # Remove itens que existiam localmente mas não voltaram do ERP neste run —
+    # ex.: item retirado de um pedido ainda editável (nota liberada é imutável;
+    # o risco real é em pedidos). Só varre os pais tocados e, como a query traz
+    # todos os itens de cada cabeçalho casado, o que não foi visto foi apagado.
+    def prune_removed(seen_sequences)
+      seen_sequences.each do |parent_id, sequences|
+        item_class.where(parent_fk => parent_id)
+                  .where.not(external_sequence: sequences.to_a)
+                  .delete_all
+      end
+    end
+
     # Consolida margem/custo no pai a partir dos itens persistidos.
     # parent_table/item_table/parent_fk vêm de constantes internas (não de input);
     # os ids passam por sanitize_sql_array (placeholder ?).
+    #
+    # margin_percent: receita líquida quase-zero (bonificação, 100% de desconto)
+    # torna o percentual sem sentido analítico E estouraria numeric(7,4) — ex.:
+    # net=0,50, custo=50 -> -9900% -> grava NULL. Fora disso, clampa a ±999,9999
+    # para caber na coluna mesmo em anomalias (net baixo com custo alto).
+    # (Sem comentários SQL inline: o heredoc é .squish -> uma linha; um `--`
+    # comentaria o resto da query.)
     def rollup(parent_ids)
       return if parent_ids.empty?
 
@@ -138,8 +179,10 @@ module Sankhya
           UPDATE #{parent_table} p SET
             total_cost = s.total_cost,
             margin_value = s.margin_value,
-            margin_percent = CASE WHEN s.net_value <> 0
-                                  THEN ROUND(s.margin_value / s.net_value * 100, 4) END,
+            margin_percent = CASE
+              WHEN ABS(s.net_value) < 1 THEN NULL
+              ELSE GREATEST(-999.9999, LEAST(999.9999, ROUND(s.margin_value / s.net_value * 100, 4)))
+            END,
             items_synced_at = NOW()
           FROM (
             SELECT #{fk} AS pid,

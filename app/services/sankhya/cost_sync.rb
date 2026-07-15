@@ -48,20 +48,25 @@ module Sankhya
 
     private
 
-    # Um custo por produto: o de DTATUAL mais recente (subconsulta correlacionada).
-    # CODLOCAL=0 = custo gerencial da empresa (não por depósito).
+    # Um custo por produto: o de DTATUAL mais recente. Duas linhas empatadas na
+    # mesma DTATUAL (mesmo dia) tornariam o custo NÃO-determinístico com a antiga
+    # subconsulta MAX (ambas voltavam; a última do loop vencia à toa). ROW_NUMBER
+    # com desempate por DTATUAL DESC, CUSGER DESC escolhe UMA linha por produto de
+    # forma estável — e ainda garante CODPROD único, o que mantém a paginação
+    # keyset limpa. CODLOCAL=0 = custo gerencial da empresa (não por depósito).
     def page_sql(after:, limit:)
       <<~SQL.squish
-        SELECT CUS.CODPROD, CUS.CUSGER, TO_CHAR(CUS.DTATUAL,'YYYY-MM-DD') DTATUAL
-        FROM TGFCUS CUS
-        WHERE CUS.CODEMP IN (#{COMPANIES.join(',')})
-          AND CUS.CODLOCAL = 0
-          AND CUS.CODPROD > #{after.to_i}
-          AND CUS.DTATUAL = (
-            SELECT MAX(C2.DTATUAL) FROM TGFCUS C2
-            WHERE C2.CODPROD = CUS.CODPROD AND C2.CODEMP = CUS.CODEMP AND C2.CODLOCAL = 0
-          )
-        ORDER BY CUS.CODPROD
+        SELECT CODPROD, CUSGER, DTATUAL FROM (
+          SELECT CUS.CODPROD, CUS.CUSGER, TO_CHAR(CUS.DTATUAL,'YYYY-MM-DD') DTATUAL,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY CUS.CODPROD ORDER BY CUS.DTATUAL DESC, CUS.CUSGER DESC
+                 ) RN
+          FROM TGFCUS CUS
+          WHERE CUS.CODEMP IN (#{COMPANIES.join(',')})
+            AND CUS.CODLOCAL = 0
+            AND CUS.CODPROD > #{after.to_i}
+        ) WHERE RN = 1
+        ORDER BY CODPROD
         FETCH FIRST #{limit.to_i} ROWS ONLY
       SQL
     end

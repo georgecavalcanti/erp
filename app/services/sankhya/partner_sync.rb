@@ -17,7 +17,7 @@ module Sankhya
     end
 
     def call(dry_run: false)
-      imported = updated = skipped = seen = 0
+      imported = updated = unchanged = skipped = seen = 0
       sample = []
       after = 0 # CODPARC 0 = "<SEM PARCEIRO>" — placeholder do ERP, fora
 
@@ -32,7 +32,11 @@ module Sankhya
             next
           end
           begin
-            upsert(attrs) ? imported += 1 : updated += 1
+            case upsert(attrs)
+            when :imported  then imported += 1
+            when :updated   then updated += 1
+            when :unchanged then unchanged += 1
+            end
           rescue => e
             skipped += 1
             Rails.logger.warn("[Sankhya::PartnerSync] CODPARC #{attrs[:external_code]} pulado: #{e.message}")
@@ -44,7 +48,7 @@ module Sankhya
         break if rows.size < @page_size
       end
 
-      { rows: seen, imported: imported, updated: updated, skipped: skipped, sample: sample }
+      { rows: seen, imported: imported, updated: updated, unchanged: unchanged, skipped: skipped, sample: sample }
     end
 
     private
@@ -82,14 +86,18 @@ module Sankhya
       }
     end
 
+    # :imported (novo), :updated (existia e mudou) ou :unchanged (sem alteração —
+    # não conta como updated na estatística).
     def upsert(attrs)
       partner = Partner.find_or_initialize_by(external_code: attrs[:external_code])
-      was_new = partner.new_record?
+      new_record = partner.new_record?
       # Nome: ERP manda; só não regride para vazio (validação exige presença).
       attrs = attrs.except(:name) if attrs[:name].blank?
       partner.assign_attributes(attrs.except(:external_code))
-      partner.save! if partner.changed?
-      was_new
+      return :unchanged unless new_record || partner.changed?
+
+      partner.save!
+      new_record ? :imported : :updated
     end
 
     def parse_date(value)
