@@ -25,8 +25,8 @@ module Sankhya
       result = sync([ ITEM1, ITEM2 ]).call
 
       assert_equal 2, result[:upserted]
-      assert_equal 1, result[:invoices_touched]
-      assert_equal 0, result[:skipped_no_invoice]
+      assert_equal 1, result[:parents_touched]
+      assert_equal 0, result[:skipped_no_parent]
       assert_equal 2, @invoice.invoice_items.count
 
       item1 = @invoice.invoice_items.find_by(external_sequence: 1)
@@ -49,7 +49,7 @@ module Sankhya
       result = sync([ ITEM1, orfao ]).call
 
       assert_equal 1, result[:upserted]
-      assert_equal 1, result[:skipped_no_invoice]
+      assert_equal 1, result[:skipped_no_parent]
       assert_equal 1, InvoiceItem.count
     end
 
@@ -72,7 +72,7 @@ module Sankhya
       assert_equal 2, @invoice.invoice_items.count
       item1 = @invoice.invoice_items.find_by(external_sequence: 1)
       assert_in_delta 22.1, item1.net_value, 0.001 # atualizado (sem desconto)
-      assert_equal 1, result[:invoices_touched]
+      assert_equal 1, result[:parents_touched]
     end
 
     test "keyset composto pagina sem partir nota entre páginas" do
@@ -84,7 +84,7 @@ module Sankhya
       result = Sankhya::InvoiceItemSync.new(client: client, page_size: 2).call
 
       assert_equal 3, result[:upserted]
-      assert_equal 2, result[:invoices_touched]
+      assert_equal 2, result[:parents_touched]
       assert_equal 3, InvoiceItem.count
       assert result[:rows] >= 3 # varreu ao menos as 3 linhas
     end

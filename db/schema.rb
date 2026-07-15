@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_15_160001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_15_170001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -119,6 +119,56 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_160001) do
     t.index ["partner_id"], name: "index_invoices_on_partner_id"
     t.index ["salesperson_id", "negotiation_date"], name: "index_invoices_on_salesperson_id_and_negotiation_date"
     t.index ["salesperson_id"], name: "index_invoices_on_salesperson_id"
+  end
+
+  create_table "order_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.decimal "discount_value", precision: 15, scale: 2, default: "0.0", null: false
+    t.integer "external_sequence", null: false
+    t.decimal "gross_value", precision: 15, scale: 2, default: "0.0", null: false
+    t.decimal "margin_value", precision: 15, scale: 2
+    t.decimal "net_value", precision: 15, scale: 2, default: "0.0", null: false
+    t.bigint "order_id", null: false
+    t.bigint "product_id"
+    t.decimal "quantity", precision: 15, scale: 4, default: "0.0", null: false
+    t.jsonb "raw", default: {}, null: false
+    t.decimal "total_cost", precision: 15, scale: 2
+    t.decimal "unit_cost", precision: 15, scale: 6
+    t.decimal "unit_price", precision: 15, scale: 6
+    t.datetime "updated_at", null: false
+    t.index ["order_id", "external_sequence"], name: "index_order_items_on_order_id_and_external_sequence", unique: true
+    t.index ["order_id"], name: "index_order_items_on_order_id"
+    t.index ["product_id"], name: "index_order_items_on_product_id"
+  end
+
+  create_table "orders", force: :cascade do |t|
+    t.bigint "company_id"
+    t.datetime "created_at", null: false
+    t.string "delivery_type"
+    t.bigint "external_uid", null: false
+    t.datetime "items_synced_at"
+    t.decimal "margin_percent", precision: 7, scale: 4
+    t.decimal "margin_value", precision: 15, scale: 2
+    t.date "movement_date"
+    t.date "negotiation_date"
+    t.string "note_status"
+    t.integer "order_number"
+    t.bigint "partner_id"
+    t.string "partner_name"
+    t.boolean "pending", default: true, null: false
+    t.jsonb "raw", default: {}, null: false
+    t.bigint "salesperson_id"
+    t.string "salesperson_label"
+    t.integer "status", default: 0, null: false
+    t.decimal "total_cost", precision: 15, scale: 2
+    t.decimal "total_value", precision: 15, scale: 2, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id"], name: "index_orders_on_company_id"
+    t.index ["external_uid"], name: "index_orders_on_external_uid", unique: true
+    t.index ["partner_id"], name: "index_orders_on_partner_id"
+    t.index ["salesperson_id", "status"], name: "index_orders_on_salesperson_id_and_status"
+    t.index ["salesperson_id"], name: "index_orders_on_salesperson_id"
+    t.index ["status"], name: "index_orders_on_status"
   end
 
   create_table "overdue_titles", force: :cascade do |t|
@@ -388,6 +438,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_160001) do
   add_foreign_key "invoices", "import_batches"
   add_foreign_key "invoices", "partners"
   add_foreign_key "invoices", "salespeople"
+  add_foreign_key "order_items", "orders"
+  add_foreign_key "order_items", "products"
+  add_foreign_key "orders", "companies"
+  add_foreign_key "orders", "partners"
+  add_foreign_key "orders", "salespeople"
   add_foreign_key "overdue_titles", "import_batches"
   add_foreign_key "overdue_titles", "partners"
   add_foreign_key "overdue_titles", "salespeople"

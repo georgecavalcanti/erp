@@ -9,8 +9,8 @@ Convenções existentes a manter: dimensões espelhadas com `external_code` úni
 | `companies` | OK | — |
 | `partners` | Estender | + `cnpj`, `city`, `state`, `segment`, `situation`, `credit_limit`, `credit_blocked`, `region` |
 | `salespeople` | Estender | + `active`, `email` (para vínculo com usuário) |
-| `invoices` | Estender | + `total_cost`, `margin_value`, `margin_percent` (derivados dos itens); manter `commission` |
-| `pending_orders` | **Evoluir para `orders`** | Histórico persistente (upsert por NUNOTA) com `status` (pending/billed/canceled/blocked), em vez de snapshot só do mês corrente. Manter view/scope "carteira" = pedidos pendentes |
+| `invoices` | ✅ Estendida (Sprint 2A) | + `total_cost`, `margin_value`, `margin_percent`, `items_synced_at` (derivados dos itens); mantém `commission` |
+| `pending_orders` | Mantida (por ora) | Snapshot da carteira do mês corrente — segue alimentando a tela Carteira até a reformulação das telas de carteira. Será substituída por `orders.portfolio` (ver follow-up abaixo) |
 | `overdue_titles`, `delinquencies` | OK | Alimentam risco/restrições dos motores |
 | `users`, `sessions` | Estender | Ver RBAC abaixo |
 | `sync_runs` | OK | Novos `kind` para os novos syncs |
@@ -21,14 +21,18 @@ Convenções existentes a manter: dimensões espelhadas com `external_code` úni
 ### `products`
 `external_code` (CODPROD, único) · `description` · `category_external_code` · `category_name` (grupo TGFGRU) · `unit` · `brand` · `active` · `current_cost` (decimal) · `raw jsonb`
 
-### `invoice_items`
-`invoice_id` FK · `product_id` FK · `external_sequence` (SEQUENCIA; único com invoice) · `quantity` · `unit_price` · `discount` · `total_value` · `unit_cost` · `margin_value` · `raw jsonb`
+### `invoice_items` ✅ (Sprint 2A)
+`invoice_id` FK · `product_id` FK (opcional) · `external_sequence` (SEQUENCIA; único com invoice) · `quantity` · `unit_price` · `gross_value` (VLRTOT) · `discount_value` (VLRDESC) · `net_value` (VLRTOT−VLRDESC) · `unit_cost` (TGFITE.CUSTO congelado) · `total_cost` · `margin_value` · `raw jsonb`
 
-### `order_items`
-Mesma estrutura de `invoice_items`, FK para `orders`.
+> Regra de margem (validada Fase 0): `net_value = VLRTOT − VLRDESC`; `margin_value = net_value − quantity×unit_cost`. Rollup soma os itens em `invoices.total_cost/margin_value/margin_percent`.
 
-### `orders` (evolução de `pending_orders`)
-Campos atuais + `status` enum · `billed_at` · `canceled_at` · `blocked` boolean · `raw jsonb`. Migração: renomear/migrar dados do snapshot atual.
+### `orders` ✅ (Sprint 2B) — histórico persistente de pedidos
+`external_code`→`external_uid` (NUNOTA, único) · dimensões (company/partner/salesperson) · `negotiation_date` · `total_value` · `status` enum (`pending`/`awaiting`/`billed`) derivado de (STATUSNOTA, PENDENTE) · `note_status` · `pending` · `delivery_type` · `total_cost`/`margin_value`/`margin_percent`/`items_synced_at` · `raw jsonb`. Upsert por NUNOTA (não snapshot). Scope `portfolio` = pendentes. **Coexiste com `pending_orders`** (que segue como snapshot da tela Carteira).
+
+### `order_items` ✅ (Sprint 2B)
+Mesma estrutura de `invoice_items`, FK para `orders`. Sincronizado por `Sankhya::OrderItemSync` (mesma base `Sankhya::ItemSync` que os itens de nota).
+
+> **Follow-up (deferido):** consolidar `pending_orders` em `orders.portfolio` e migrar as telas Carteira/Situação — feito quando as telas de carteira forem reformuladas (Sprints 5+), para não refatorar telas prestes a mudar. Requer validação do gestor sobre a semântica da carteira (todos os pendentes × só mês corrente).
 
 ### `stock_levels`
 `product_id` FK · `company_id` FK · `available` · `reserved` · `synced_at` — snapshot (delete+insert atômico, padrão do `PendingOrderSync` atual).

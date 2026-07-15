@@ -182,7 +182,7 @@ namespace :sankhya do
   task :items_dry, [ :days ] => :environment do |_t, args|
     days = (args[:days] || 7).to_i
     r = Sankhya::InvoiceItemSync.new(since: Date.current - days).call(dry_run: true)
-    puts "itens: #{r[:rows]} linhas lidas (#{r[:invoices_touched]} notas casadas, #{r[:skipped_no_invoice]} sem nota local). Amostra:"
+    puts "itens: #{r[:rows]} linhas lidas (#{r[:parents_touched]} notas casadas, #{r[:skipped_no_parent]} sem nota local). Amostra:"
     r[:sample].each { |s| puts "  #{s.inspect}" }
   rescue Sankhya::Error => e
     warn "✗ #{e.class}: #{e.message}"
@@ -193,7 +193,31 @@ namespace :sankhya do
   task :items, [ :days ] => :environment do |_t, args|
     days = (args[:days] || 7).to_i
     r = Sankhya::InvoiceItemSync.new(since: Date.current - days).call
-    puts "itens: #{r[:rows]} lidos — #{r[:upserted]} gravados, #{r[:invoices_touched]} notas com margem recalculada, #{r[:skipped_no_invoice]} sem nota local"
+    puts "itens: #{r[:rows]} lidos — #{r[:upserted]} gravados, #{r[:parents_touched]} notas com margem recalculada, #{r[:skipped_no_parent]} sem nota local"
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
+
+  desc "Sincroniza o HISTÓRICO de pedidos (TOP 1001) dos últimos N dias -> Order (upsert, status). Ex: sankhya:orders[7]"
+  task :orders, [ :days ] => :environment do |_t, args|
+    days = (args[:days] || 7).to_i
+    r = Sankhya::OrderSync.new(since: Date.current - days).call
+    puts "pedidos: #{r[:rows]} lidos — #{r[:imported]} novos, #{r[:updated]} atualizados, #{r[:skipped]} pulados"
+    r = Sankhya::OrderItemSync.new(since: Date.current - days).call
+    puts "itens de pedido: #{r[:rows]} lidos — #{r[:upserted]} gravados, #{r[:parents_touched]} pedidos com margem, #{r[:skipped_no_parent]} sem pedido local"
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
+
+  desc "Backfill COMPLETO de pedidos + itens (desde dez/2024) -> Order/OrderItem. Rode fora do horário comercial."
+  task orders_all: :environment do
+    puts "→ Backfill de pedidos desde 2024-12-01…"
+    r = Sankhya::OrderSync.new(since: Date.new(2024, 12, 1)).call
+    puts "  ✓ pedidos: #{r[:rows]} lidos (#{r[:imported]} novos)"
+    r = Sankhya::OrderItemSync.new(since: Date.new(2024, 12, 1)).call
+    puts "  ✓ itens de pedido: #{r[:rows]} lidos, #{r[:parents_touched]} pedidos com margem"
   rescue Sankhya::Error => e
     warn "✗ #{e.class}: #{e.message}"
     exit 1
@@ -203,7 +227,7 @@ namespace :sankhya do
   task items_all: :environment do
     puts "→ Backfill de itens desde 2024-12-01 (pode levar minutos; ~960 mil itens)…"
     r = Sankhya::InvoiceItemSync.new(since: Date.new(2024, 12, 1)).call
-    puts "  ✓ itens: #{r[:rows]} lidos, #{r[:upserted]} gravados, #{r[:invoices_touched]} notas com margem"
+    puts "  ✓ itens: #{r[:rows]} lidos, #{r[:upserted]} gravados, #{r[:parents_touched]} notas com margem"
   rescue Sankhya::Error => e
     warn "✗ #{e.class}: #{e.message}"
     exit 1
@@ -256,7 +280,7 @@ namespace :sankhya do
 
     db = ActiveRecord::Base.connection.current_database
     puts "→ Alvo: banco '#{db}' (#{Rails.env}). LIMPANDO e repopulando pela API..."
-    tables = %w[invoice_items invoices pending_orders overdue_titles delinquencies products partners salespeople companies import_batches]
+    tables = %w[invoice_items invoices order_items orders pending_orders overdue_titles delinquencies products partners salespeople companies import_batches]
     ActiveRecord::Base.connection.execute("TRUNCATE #{tables.join(', ')} RESTART IDENTITY")
     puts "  ✓ banco limpo (usuários preservados)."
 
@@ -265,7 +289,12 @@ namespace :sankhya do
     Sankhya::CatalogSync.call[:results].each { |label, res| puts "  ✓ #{label.downcase}: #{res[:rows]} lidos" }
     # Itens depois de notas (vínculo por NUNOTA) e produtos (vínculo por CODPROD).
     r = Sankhya::InvoiceItemSync.new(since: Date.new(2024, 12, 1)).call
-    puts "  ✓ itens: #{r[:rows]} lidos, #{r[:invoices_touched]} notas com margem"
+    puts "  ✓ itens de nota: #{r[:rows]} lidos, #{r[:parents_touched]} notas com margem"
+    # Pedidos (histórico persistente) + seus itens.
+    r = Sankhya::OrderSync.new(since: Date.new(2024, 12, 1)).call
+    puts "  ✓ pedidos: #{r[:rows]} lidos (#{r[:imported]} novos)"
+    r = Sankhya::OrderItemSync.new(since: Date.new(2024, 12, 1)).call
+    puts "  ✓ itens de pedido: #{r[:rows]} lidos, #{r[:parents_touched]} pedidos com margem"
     r = Sankhya::PendingOrderSync.new.call
     puts "  ✓ carteira: #{r[:rows]} pedidos (R$ #{r[:total]})"
     r = Sankhya::OverdueTitleSync.new.call

@@ -68,17 +68,16 @@ Executada em duas partes: **2A** (itens+custo+margem, feita) e **2B** (pedidos c
 - [x] Testes: 9 (mapeamento de margem, keyset composto sem partir nota, órfão, custo ausente, idempotência, dry-run)
 - [x] **Validação contra ERP produção**: 762 notas / 7.991 itens (7 dias); conciliação `Σ net_value` = `VLRNOTA` → **0 divergências**; margens 22–30%
 
-### Parte 2B — Pedidos com histórico e carteira (pendente)
-- [ ] Migrations: `orders` (evolução de `pending_orders` com status/histórico), `order_items`
-- [ ] `Sankhya::OrderSync` — histórico com status (pendente/faturado/cancelado/bloqueado), upsert por NUNOTA
-- [ ] Itens de pedido via `ItemSync` (generalizar o de notas)
-- [ ] Backfill de pedidos + itens desde dez/2024
-- [ ] Ajustar frequências: pedidos 10 min, notas/devoluções 15 min (doc 03)
-- [ ] Migrar telas Carteira/Devoluções para `orders` (view carteira = pendentes)
-- [ ] Índices de volumetria (doc 04) + EXPLAIN nas consultas de mix
-- [ ] Testes: transição de status do pedido, reconcile de itens
+### Parte 2B — Pedidos com histórico e itens de pedido ✅
+- [x] Migrations: `orders` (histórico persistente, upsert por NUNOTA, status pending/awaiting/billed) + `order_items`
+- [x] `Sankhya::OrderSync` — status derivado do par (STATUSNOTA, PENDENTE); scope `portfolio` = pendentes
+- [x] `Sankhya::OrderItemSync` via base compartilhada `Sankhya::ItemSync` (refatorado de `InvoiceItemSync`, sem regressão)
+- [x] Incremental no `ScheduledSync` (Pedidos + ItensPedido, janela 24h) + tasks `sankhya:orders[dias]`, `orders_all`; `bootstrap` inclui pedidos
+- [x] Testes: 8 (derivação de status, upsert que muda status, portfolio scope, keyset, item de pedido, órfão)
+- [x] **Validação contra ERP produção**: 619 pedidos (154 pending / 449 billed / 16 awaiting — bate com diagnóstico) / 5.532 itens; conciliação `Σ net_value` = `VLRNOTA` → **0 divergências**
+- [ ] **Deferido** (follow-up documentado no doc 04): consolidar `pending_orders`→`orders.portfolio` + migrar telas Carteira/Situação; ajustar frequências pedidos 10min/notas 15min; backfill completo dos 19 meses (`sankhya:items_all` + `orders_all` fora do horário)
 
-**Aceite**: ✅ (2A) faturamento e margem por nota conferem com o Sankhya (0 divergências em amostra). Falta backfill completo dos 19 meses (rodar `sankhya:items_all` fora do horário) + validação do gestor; **2B** conclui pedidos/carteira.
+**Aceite**: ✅ faturamento e margem por nota/pedido conferem com o Sankhya (0 divergências nas amostras 2A e 2B). Backfill completo dos 19 meses e validação do gestor pendentes (não bloqueiam as próximas sprints — os dados de janela já validam a lógica).
 
 ## Sprint 3 — Usuários, perfis, carteiras, metas e indicadores básicos
 

@@ -61,7 +61,10 @@ module Sankhya
         "Inadimplência" => -> { Sankhya::OverdueTitleSync.new.call },
         # Itens das notas mexidas nas últimas 24h -> recomputa a margem delas.
         # Depende das Notas já terem entrado nesta rodada (mesmo horizonte).
-        "Itens" => -> { Sankhya::InvoiceItemSync.new(changed_within_hours: 24).call }
+        "Itens" => -> { Sankhya::InvoiceItemSync.new(changed_within_hours: 24).call },
+        # Histórico de pedidos (status) + seus itens, mesma janela.
+        "Pedidos" => -> { Sankhya::OrderSync.new(changed_within_hours: 24).call },
+        "ItensPedido" => -> { Sankhya::OrderItemSync.new(changed_within_hours: 24).call }
       }
     end
   end
