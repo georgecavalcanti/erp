@@ -58,7 +58,10 @@ module Sankhya
       {
         "Notas" => -> { Sankhya::InvoiceSync.new(changed_within_hours: 24).call },
         "Carteira" => -> { Sankhya::PendingOrderSync.new.call },
-        "Inadimplência" => -> { Sankhya::OverdueTitleSync.new.call }
+        "Inadimplência" => -> { Sankhya::OverdueTitleSync.new.call },
+        # Itens das notas mexidas nas últimas 24h -> recomputa a margem delas.
+        # Depende das Notas já terem entrado nesta rodada (mesmo horizonte).
+        "Itens" => -> { Sankhya::InvoiceItemSync.new(changed_within_hours: 24).call }
       }
     end
   end

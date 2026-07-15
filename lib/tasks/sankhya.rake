@@ -178,7 +178,47 @@ namespace :sankhya do
     exit 1
   end
 
-  desc "Sync manual de CADASTROS (produtos+parceiros+vendedores). No dia a dia roda pelo Solid Queue — ver SankhyaCatalogSyncJob."
+  desc "DRY-RUN itens de nota (TGFITE) dos últimos N dias — só lê. Ex: sankhya:items_dry[7]"
+  task :items_dry, [ :days ] => :environment do |_t, args|
+    days = (args[:days] || 7).to_i
+    r = Sankhya::InvoiceItemSync.new(since: Date.current - days).call(dry_run: true)
+    puts "itens: #{r[:rows]} linhas lidas (#{r[:invoices_touched]} notas casadas, #{r[:skipped_no_invoice]} sem nota local). Amostra:"
+    r[:sample].each { |s| puts "  #{s.inspect}" }
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
+
+  desc "Sincroniza itens das notas dos últimos N dias -> InvoiceItem + margem na nota. Ex: sankhya:items[7]"
+  task :items, [ :days ] => :environment do |_t, args|
+    days = (args[:days] || 7).to_i
+    r = Sankhya::InvoiceItemSync.new(since: Date.current - days).call
+    puts "itens: #{r[:rows]} lidos — #{r[:upserted]} gravados, #{r[:invoices_touched]} notas com margem recalculada, #{r[:skipped_no_invoice]} sem nota local"
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
+
+  desc "Backfill COMPLETO de itens (desde dez/2024, go-live do ERP) -> InvoiceItem + margem. Paginado; rode fora do horário comercial."
+  task items_all: :environment do
+    puts "→ Backfill de itens desde 2024-12-01 (pode levar minutos; ~960 mil itens)…"
+    r = Sankhya::InvoiceItemSync.new(since: Date.new(2024, 12, 1)).call
+    puts "  ✓ itens: #{r[:rows]} lidos, #{r[:upserted]} gravados, #{r[:invoices_touched]} notas com margem"
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
+
+  desc "Atualiza o custo atual dos produtos (TGFCUS -> Product#current_cost)."
+  task costs: :environment do
+    r = Sankhya::CostSync.new.call
+    puts "custos: #{r[:rows]} lidos — #{r[:updated]} produtos atualizados, #{r[:missing]} sem cadastro"
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
+
+  desc "Sync manual de CADASTROS (produtos+parceiros+vendedores+custos). No dia a dia roda pelo Solid Queue — ver SankhyaCatalogSyncJob."
   task sync_catalog: :environment do
     r = Sankhya::CatalogSync.call
     if r[:skipped]
@@ -216,13 +256,16 @@ namespace :sankhya do
 
     db = ActiveRecord::Base.connection.current_database
     puts "→ Alvo: banco '#{db}' (#{Rails.env}). LIMPANDO e repopulando pela API..."
-    tables = %w[invoices pending_orders overdue_titles delinquencies products partners salespeople companies import_batches]
+    tables = %w[invoice_items invoices pending_orders overdue_titles delinquencies products partners salespeople companies import_batches]
     ActiveRecord::Base.connection.execute("TRUNCATE #{tables.join(', ')} RESTART IDENTITY")
     puts "  ✓ banco limpo (usuários preservados)."
 
     r = Sankhya::InvoiceSync.new(since: nil).call
     puts "  ✓ notas: #{r[:rows]} lidas (#{r[:imported]} novas, #{r[:skipped]} puladas)"
     Sankhya::CatalogSync.call[:results].each { |label, res| puts "  ✓ #{label.downcase}: #{res[:rows]} lidos" }
+    # Itens depois de notas (vínculo por NUNOTA) e produtos (vínculo por CODPROD).
+    r = Sankhya::InvoiceItemSync.new(since: Date.new(2024, 12, 1)).call
+    puts "  ✓ itens: #{r[:rows]} lidos, #{r[:invoices_touched]} notas com margem"
     r = Sankhya::PendingOrderSync.new.call
     puts "  ✓ carteira: #{r[:rows]} pedidos (R$ #{r[:total]})"
     r = Sankhya::OverdueTitleSync.new.call

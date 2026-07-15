@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_15_150001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_15_160001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -56,6 +56,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_150001) do
     t.index ["user_id"], name: "index_import_batches_on_user_id"
   end
 
+  create_table "invoice_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.decimal "discount_value", precision: 15, scale: 2, default: "0.0", null: false
+    t.integer "external_sequence", null: false
+    t.decimal "gross_value", precision: 15, scale: 2, default: "0.0", null: false
+    t.bigint "invoice_id", null: false
+    t.decimal "margin_value", precision: 15, scale: 2
+    t.decimal "net_value", precision: 15, scale: 2, default: "0.0", null: false
+    t.bigint "product_id"
+    t.decimal "quantity", precision: 15, scale: 4, default: "0.0", null: false
+    t.jsonb "raw", default: {}, null: false
+    t.decimal "total_cost", precision: 15, scale: 2
+    t.decimal "unit_cost", precision: 15, scale: 6
+    t.decimal "unit_price", precision: 15, scale: 6
+    t.datetime "updated_at", null: false
+    t.index ["invoice_id", "external_sequence"], name: "index_invoice_items_on_invoice_id_and_external_sequence", unique: true
+    t.index ["invoice_id"], name: "index_invoice_items_on_invoice_id"
+    t.index ["product_id"], name: "index_invoice_items_on_product_id"
+  end
+
   create_table "invoices", force: :cascade do |t|
     t.decimal "commission", precision: 15, scale: 2, default: "0.0", null: false
     t.bigint "company_id"
@@ -67,7 +87,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_150001) do
     t.bigint "import_batch_id"
     t.jsonb "installment_offsets", default: [], null: false
     t.integer "invoice_number"
+    t.datetime "items_synced_at"
     t.integer "kind", default: 0, null: false
+    t.decimal "margin_percent", precision: 7, scale: 4
+    t.decimal "margin_value", precision: 15, scale: 2
     t.string "nature_desc"
     t.date "negotiation_date", null: false
     t.string "nfe_status"
@@ -81,6 +104,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_150001) do
     t.jsonb "raw", default: {}, null: false
     t.string "result_center_desc"
     t.bigint "salesperson_id"
+    t.decimal "total_cost", precision: 15, scale: 2
     t.decimal "total_value", precision: 15, scale: 2, default: "0.0", null: false
     t.datetime "updated_at", null: false
     t.index ["company_id", "negotiation_date"], name: "index_invoices_on_company_id_and_negotiation_date"
@@ -358,6 +382,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_150001) do
   add_foreign_key "delinquencies", "import_batches"
   add_foreign_key "delinquencies", "salespeople"
   add_foreign_key "import_batches", "users"
+  add_foreign_key "invoice_items", "invoices"
+  add_foreign_key "invoice_items", "products"
   add_foreign_key "invoices", "companies"
   add_foreign_key "invoices", "import_batches"
   add_foreign_key "invoices", "partners"

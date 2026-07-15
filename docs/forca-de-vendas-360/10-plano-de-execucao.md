@@ -56,18 +56,29 @@ Sessão de trabalho com o responsável Sankhya (não é sprint de código):
 
 **Escopo PDF**: pedidos; itens; notas; cancelamentos; devoluções; custos.
 
-- [ ] Migrations: `orders` (evolução de `pending_orders`), `order_items`, `invoice_items` (doc 04)
+Executada em duas partes: **2A** (itens+custo+margem, feita) e **2B** (pedidos com histórico + carteira, pendente).
+
+### Parte 2A — Itens de nota, custo e margem ✅
+- [x] Migration `invoice_items` + colunas `total_cost`/`margin_value`/`margin_percent`/`items_synced_at` em `invoices`
+- [x] `InvoiceItem` model + associação em `Invoice` + `Invoice#signed_margin`
+- [x] `Sankhya::CostSync` — custo atual do produto (TGFCUS.CUSGER, mais recente) → `Product#current_cost`
+- [x] `Sankhya::InvoiceItemSync` — TGFITE, keyset composto (NUNOTA,SEQUENCIA), `upsert_all`, custo congelado (`TGFITE.CUSTO`), rollup de margem na nota via UPDATE...FROM
+- [x] Incremental: etapa "Itens" no `ScheduledSync` (notas mexidas em 24h); custo diário no `CatalogSync`
+- [x] Tasks `sankhya:items[dias]`, `items_dry`, `items_all` (backfill dez/2024), `costs`; `bootstrap` inclui itens
+- [x] Testes: 9 (mapeamento de margem, keyset composto sem partir nota, órfão, custo ausente, idempotência, dry-run)
+- [x] **Validação contra ERP produção**: 762 notas / 7.991 itens (7 dias); conciliação `Σ net_value` = `VLRNOTA` → **0 divergências**; margens 22–30%
+
+### Parte 2B — Pedidos com histórico e carteira (pendente)
+- [ ] Migrations: `orders` (evolução de `pending_orders` com status/histórico), `order_items`
 - [ ] `Sankhya::OrderSync` — histórico com status (pendente/faturado/cancelado/bloqueado), upsert por NUNOTA
-- [ ] `Sankhya::ItemSync` — itens de notas e pedidos (TGFITE), com custo unitário
-- [ ] `Sankhya::CostSync` — custo vigente por produto (diário)
-- [ ] Derivar `total_cost`/`margin_value`/`margin_percent` em `invoices` a partir dos itens
-- [ ] Backfill 24 meses: notas + itens + pedidos (tasks rake, lotes na madrugada)
+- [ ] Itens de pedido via `ItemSync` (generalizar o de notas)
+- [ ] Backfill de pedidos + itens desde dez/2024
 - [ ] Ajustar frequências: pedidos 10 min, notas/devoluções 15 min (doc 03)
 - [ ] Migrar telas Carteira/Devoluções para `orders` (view carteira = pendentes)
 - [ ] Índices de volumetria (doc 04) + EXPLAIN nas consultas de mix
-- [ ] Testes: cálculo de margem, transição de status do pedido, reconcile de itens
+- [ ] Testes: transição de status do pedido, reconcile de itens
 
-**Aceite**: faturamento e margem por nota conferem com o Sankhya em amostra validada pelo gestor; 24 meses carregados.
+**Aceite**: ✅ (2A) faturamento e margem por nota conferem com o Sankhya (0 divergências em amostra). Falta backfill completo dos 19 meses (rodar `sankhya:items_all` fora do horário) + validação do gestor; **2B** conclui pedidos/carteira.
 
 ## Sprint 3 — Usuários, perfis, carteiras, metas e indicadores básicos
 

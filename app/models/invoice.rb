@@ -3,6 +3,7 @@ class Invoice < ApplicationRecord
   belongs_to :partner,      optional: true
   belongs_to :salesperson,  optional: true
   belongs_to :import_batch, optional: true
+  has_many :invoice_items, dependent: :delete_all
 
   # Venda vs Devolução. Prefixo evita colidir com a palavra reservada `return`.
   enum :kind, { sale: 0, return: 1 }, prefix: :kind
@@ -53,6 +54,13 @@ class Invoice < ApplicationRecord
   # Valor com sinal: devoluções entram negativas no faturamento líquido.
   def signed_value
     kind_return? ? -total_value : total_value
+  end
+
+  # Margem com sinal (mesma convenção de signed_value): devolução reverte a margem.
+  def signed_margin
+    return nil if margin_value.nil?
+
+    kind_return? ? -margin_value : margin_value
   end
 
   # Marca/desmarca pagamento preservando o instante da quitação.

@@ -55,7 +55,10 @@ module Sankhya
       {
         "Produtos" => -> { Sankhya::ProductSync.new.call },
         "Parceiros" => -> { Sankhya::PartnerSync.new.call },
-        "Vendedores" => -> { Sankhya::SalespersonSync.new.call }
+        "Vendedores" => -> { Sankhya::SalespersonSync.new.call },
+        # Custo atual dos produtos (TGFCUS). Roda junto por conveniência — muda
+        # devagar; alimenta simulação/margem de itens novos (cotações, cross-sell).
+        "Custos" => -> { Sankhya::CostSync.new.call }
       }
     end
   end
