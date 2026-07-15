@@ -4,6 +4,7 @@ Rails.application.routes.draw do
 
   # Painéis (Inertia + Vue)
   root "dashboard#index"
+  get "cockpit",       to: "cockpit#index",     as: :cockpit
   get "situacao",      to: "situation#index",   as: :situation
   get "vendedores",    to: "salespeople#index", as: :salespeople
   get "parceiros",     to: "partners#index",    as: :partners

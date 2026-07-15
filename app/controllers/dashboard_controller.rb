@@ -2,6 +2,10 @@ class DashboardController < ApplicationController
   include AnalyticsFilters
 
   def index
+    # Root por perfil (doc 08): vendedor/representante vão para o Cockpit; gestão
+    # e diretoria mantêm o dashboard consolidado.
+    return redirect_to cockpit_path if Current.user&.needs_salesperson?
+
     report = analytics
 
     render inertia: "Dashboard", props: {

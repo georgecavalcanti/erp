@@ -30,33 +30,37 @@ class WalletIsolationTest < ActionDispatch::IntegrationTest
     @admin  = User.create!(email_address: "adm@jatto.local", password: "secret123", role: :administrador)
   end
 
-  test "Dashboard: vendedor A vê só o próprio faturamento e ranking" do
+  test "root do vendedor vai para o Cockpit (não vê o dashboard consolidado)" do
     sign_in_as(@vend_a)
     get root_path
-
-    assert_inertia_component "Dashboard"
-    assert_equal 1000.0, inertia.props[:summary][:net_revenue]
-    assert_equal [ "VEND.A" ], inertia.props[:topSalespeople].map { |r| r[:name] }
-    partners = inertia.props[:topPartners].map { |r| r[:name] }
-    assert_includes partners, "CLIENTE A"
-    assert_not_includes partners, "CLIENTE B"
+    assert_redirected_to cockpit_path
   end
 
-  test "Dashboard: admin vê todos os vendedores" do
+  test "vendedor A vê só o próprio faturamento e ranking" do
+    sign_in_as(@vend_a)
+    get salespeople_path
+
+    assert_inertia_component "Salespeople"
+    assert_equal 1000.0, inertia.props[:summary][:net_revenue]
+    assert_equal [ "VEND.A" ], inertia.props[:ranking].map { |r| r[:name] }
+  end
+
+  test "Dashboard: admin (não-vendedor) vê todos os vendedores no root" do
     sign_in_as(@admin)
     get root_path
 
+    assert_inertia_component "Dashboard"
     assert_equal 3000.0, inertia.props[:summary][:net_revenue]
     assert_equal 2, inertia.props[:topSalespeople].size
   end
 
   test "elevação de privilégio: A forçando salesperson_ids=B não vê B" do
     sign_in_as(@vend_a)
-    get root_path(salesperson_ids: [ @sp_b.id ])
+    get salespeople_path(salesperson_ids: [ @sp_b.id ])
 
     # A∩B = vazio: o filtro do cliente jamais amplia o escopo autorizado.
     assert_equal 0.0, inertia.props[:summary][:net_revenue]
-    assert_empty inertia.props[:topSalespeople]
+    assert_empty inertia.props[:ranking]
   end
 
   test "Situação geral: só a linha do próprio vendedor" do
@@ -99,7 +103,7 @@ class WalletIsolationTest < ActionDispatch::IntegrationTest
 
   test "Dropdown de filtros do vendedor lista só ele e seus clientes" do
     sign_in_as(@vend_a)
-    get root_path
+    get salespeople_path
 
     opts = inertia.props[:filterOptions]
     assert_equal [ "VEND.A" ], opts[:salespeople].map { |o| o[:name] }

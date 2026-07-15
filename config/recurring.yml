@@ -20,3 +20,9 @@ production:
     queue: sankhya
     schedule: "15 8-19/2 * * * America/Sao_Paulo" # a cada 2h (8h15-18h15) — cadastros mudam devagar (FV360 doc 03)
     description: "Cadastros: produtos, parceiros e vendedores (full upsert)"
+
+  projection_recalc:
+    class: ProjectionRecalcJob
+    queue: default
+    schedule: "10 0 * * * America/Sao_Paulo" # 00:10 — virada de dia (atualiza dias úteis/ritmo)
+    description: "Recalcula projeções do mês por vendedor com meta (append-only)"

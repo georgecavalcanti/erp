@@ -99,14 +99,14 @@ Executada em duas partes: **2A** (itens+custo+margem, feita) e **2B** (pedidos c
 
 **Escopo PDF**: cockpit; realizado; ritmo; gap; cenários.
 
-- [ ] Calendário de dias úteis (feriados BR) — utilitário compartilhado
-- [ ] `Engines::Projection` (3 cenários com `components jsonb`, doc 05.1) + tabela `projections`
-- [ ] Job de recálculo (a cada sync relevante + virada de dia)
-- [ ] Página `Cockpit.vue` (doc 08): meta, realizado, atingimento vs. esperado, projeções, gap, ritmo diário
-- [ ] Root por perfil: vendedor → `/cockpit`; gestor → dashboard atual
-- [ ] Testes de cálculo: faturamento líquido, devoluções, dias úteis, cenários (fixtures determinísticas)
+- [x] Calendário de dias úteis (feriados BR) — `BusinessCalendar` (fixos + Sexta-feira Santa via Páscoa + Consciência Negra 2024+); `month_stats` = total/elapsed/remaining
+- [x] `Engines::Projection` (3 cenários com `components jsonb`, doc 05.1) + tabela `projections` (append-only): realizado + carteira ponderada + run-rate; gap, atingimento esperado, ritmo diário, confiança
+- [x] Job de recálculo (`ProjectionRecalcJob`): virada de dia (`config/recurring.yml` 00:10) + após sync relevante (enfileirado no `SankhyaSyncJob`); rake `projections:recalc`
+- [x] Página `Cockpit.vue` (doc 08): meta, realizado, atingimento vs. esperado, 3 projeções com parcelas rastreáveis, gap, ritmo diário, barra de progresso
+- [x] Root por perfil: vendedor/representante → `/cockpit` (redirect no `DashboardController`); gestão/diretoria mantêm o dashboard; `AppLayout` mostra Cockpit como home do vendedor
+- [x] Testes de cálculo: dias úteis, faturamento líquido, devoluções (margem com sinal), cenários monotônicos, gap/ritmo, isolamento; controller do Cockpit e job
 
-**Aceite**: critérios MVP 1, 2 e 5 (faturamento = Sankhya; devoluções corretas; projeção com componentes rastreáveis e confiança).
+**Aceite**: ✅ critérios MVP 1, 2 e 5. Verificado no app real (vendedor NATHALIA BEZERRA, julho/2026): realizado líquido = Sankhya, devoluções revertidas, 3 cenários com `components` rastreáveis + confiança, ritmo/gap corretos. `bin/ci` verde (104 testes). Pesos dos cenários são MVP (viram config de gestor); recompra/cotação/cross-sell entram como parcelas nas Sprints 5-7.
 
 ## Sprint 5 — Cliente 360: frequência, mix, margem e financeiro
 

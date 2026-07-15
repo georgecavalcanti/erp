@@ -46,8 +46,7 @@ const syncTitle = computed(() => {
     : 'Última sincronização com o Sankhya (roda a cada 30 min em horário comercial).'
 })
 
-const NAV = [
-  { label: 'Visão geral', href: '/', exact: true },
+const NAV_REST = [
   { label: 'Situação geral', href: '/situacao' },
   { label: 'Vendedores', href: '/vendedores' },
   { label: 'Parceiros', href: '/parceiros' },
@@ -55,6 +54,17 @@ const NAV = [
   { label: 'Inadimplência', href: '/inadimplencia' },
   { label: 'Devoluções', href: '/devolucoes' },
 ]
+
+// Home por perfil (doc 08): vendedor/representante têm o Cockpit como início;
+// gestão/diretoria começam na visão geral consolidada.
+const nav = computed(() => {
+  const u = user.value as { role?: string } | null
+  const seller = u?.role === 'vendedor' || u?.role === 'representante'
+  const home = seller
+    ? { label: 'Cockpit', href: '/cockpit', exact: true }
+    : { label: 'Visão geral', href: '/', exact: true }
+  return [home, ...NAV_REST]
+})
 
 // Navegação de administração por perfil (doc 07): gestor/admin gerem carteiras e
 // metas; só o admin gere usuários. As flags vêm do inertia_share.
@@ -85,7 +95,7 @@ function isActive(item: { href: string; exact?: boolean }) {
         </div>
         <nav class="flex-1 space-y-1 p-3">
           <Link
-            v-for="item in NAV"
+            v-for="item in nav"
             :key="item.href"
             :href="item.href"
             class="block rounded-lg px-3 py-2 text-sm font-medium transition"
@@ -154,7 +164,7 @@ function isActive(item: { href: string; exact?: boolean }) {
         <!-- Nav mobile -->
         <nav class="flex gap-1 overflow-x-auto border-b border-slate-200 bg-white px-4 py-2 lg:hidden">
           <Link
-            v-for="item in [...NAV, ...adminNav]"
+            v-for="item in [...nav, ...adminNav]"
             :key="item.href"
             :href="item.href"
             class="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium"
