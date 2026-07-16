@@ -9,11 +9,6 @@ module AnalyticsFilters
 
   private
 
-  # Escopo RBAC do usuário logado (doc 07). Fonte única do recorte de segurança.
-  def access
-    @access ||= AccessPolicy.new(Current.user)
-  end
-
   # Memoizado: o mesmo objeto alimenta os relatórios e o #authorize dos escopos
   # de snapshot (carteira/inadimplência) nos controllers.
   def analytics

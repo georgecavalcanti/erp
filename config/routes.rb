@@ -12,6 +12,11 @@ Rails.application.routes.draw do
   get "inadimplencia", to: "receivables#index", as: :receivables
   get "devolucoes",    to: "returns#index",     as: :returns
 
+  # Cliente 360 e Minha Carteira (Sprint 5) — escopadas pela carteira do usuário.
+  get  "minha-carteira", to: "wallet#index",      as: :wallet
+  get  "clientes/:id",   to: "customer360#show",  as: :cliente
+  post "atividades",     to: "activities#create", as: :atividades
+
   # Administração (RBAC): usuários (só admin) · carteiras e metas (gestor + admin).
   namespace :admin do
     resources :usuarios,  controller: "users",   except: :show

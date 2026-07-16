@@ -45,6 +45,13 @@ class AccessPolicy
     Wallet.active.where(salesperson_id: seller_ids).distinct.pluck(:partner_id)
   end
 
+  # Pode abrir o Cliente 360 deste parceiro? (irrestrito vê qualquer um; vendedor
+  # só os da sua carteira). É o limite de segurança das telas de cliente.
+  def can_view_partner?(partner_id)
+    ids = authorized_partner_ids
+    ids.nil? || ids.include?(partner_id.to_i)
+  end
+
   private
 
   # Coordenador: vendedores dos usuários que ele gerencia (manager_id) + o dele.

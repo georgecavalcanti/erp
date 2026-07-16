@@ -112,15 +112,16 @@ Executada em duas partes: **2A** (itens+custo+margem, feita) e **2B** (pedidos c
 
 **Escopo PDF**: cliente 360; frequência; mix; margem; financeiro.
 
-- [ ] `Sankhya::StockSync` + `Sankhya::CreditSync` + `partner_financials` (doc 03/04)
-- [ ] `Sankhya::LiveQueries` (estoque, preço, crédito, situação de pedido em tempo real com fallback)
-- [ ] Serviço `Customer360Report`: receita, margem, ticket, frequência, mix por categoria, evolução mensal
-- [ ] Página `Customer360.vue` (doc 08) com registro rápido de atividade
-- [ ] Migration `activities` + registro de contato/visita/observação
-- [ ] Página `Wallet.vue` (Minha carteira) com segmentação básica (sem status de risco ainda)
-- [ ] Testes: agregações do 360 (frequência, mix), fallback das consultas tempo real
+- [x] Serviço `Customer360Report`: receita, margem, ticket, frequência, mix por categoria, evolução mensal, financeiro (inadimplência + bloqueio) — tudo do espelho local
+- [x] Página `Customer360.vue` (doc 08) com registro rápido de atividade
+- [x] Migration `activities` + `Activity` model + `ActivitiesController` (contato/visita/tarefa/observação/resultado, escopado)
+- [x] Página `Wallet.vue` (Minha carteira) com segmentação básica por recência (ativo/atenção/inativo/sem compra; status de risco só na Sprint 6)
+- [x] Escopo de cliente (`AccessPolicy#can_view_partner?`): vendedor só abre/age em cliente da sua carteira — testes de isolamento
+- [x] Testes: agregações do 360 (receita/margem/ticket/frequência/mix/evolução), isolamento do 360/carteira/atividades
+- [x] **Crédito**: já é local (Fase 0: inadimplência `overdue_titles` + bloqueio `partners.blocked/MOTBLOQ`, não `LIMCRED`) — exibido no 360 sem novo sync
+- [ ] `Sankhya::StockSync` (TGFEST) + `stock_levels` + `Sankhya::LiveQueries` (estoque ao vivo com fallback) — **próximo passo (estoque)**
 
-**Aceite**: vendedor abre qualquer cliente da sua carteira e vê o 360 completo em < 2s (dados locais) com crédito/estoque ao vivo.
+**Aceite**: ✅ (parcial) vendedor abre qualquer cliente da sua carteira e vê o 360 completo em < 2s (dados locais) com crédito local. Verificado no app real (NATHALIA BEZERRA, 95 clientes, R$3,07M/12m; cliente AVANNTE: receita/margem/mix/pedidos/atividades). **Falta o estoque ao vivo** (TGFEST) para fechar 100% da aceitação. `bin/ci` verde (117 testes).
 
 ## Sprint 6 — Recompra, confiança e alertas
 

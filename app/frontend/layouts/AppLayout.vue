@@ -60,10 +60,14 @@ const NAV_REST = [
 const nav = computed(() => {
   const u = user.value as { role?: string } | null
   const seller = u?.role === 'vendedor' || u?.role === 'representante'
-  const home = seller
-    ? { label: 'Cockpit', href: '/cockpit', exact: true }
-    : { label: 'Visão geral', href: '/', exact: true }
-  return [home, ...NAV_REST]
+  if (seller) {
+    return [
+      { label: 'Cockpit', href: '/cockpit', exact: true },
+      { label: 'Minha carteira', href: '/minha-carteira' },
+      ...NAV_REST,
+    ]
+  }
+  return [{ label: 'Visão geral', href: '/', exact: true }, ...NAV_REST]
 })
 
 // Navegação de administração por perfil (doc 07): gestor/admin gerem carteiras e

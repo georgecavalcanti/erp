@@ -31,6 +31,12 @@ class ApplicationController < ActionController::Base
 
   private
 
+  # Escopo RBAC do usuário logado (doc 07). Fonte única do recorte de segurança —
+  # usada pelos filtros de analytics e pelas telas de cliente/carteira.
+  def access
+    @access ||= AccessPolicy.new(Current.user)
+  end
+
   # Último sync do Sankhya (para o cabeçalho dos painéis). Protegido contra a
   # janela de deploy em que o código novo roda antes da migration de sync_runs.
   def last_sync_info

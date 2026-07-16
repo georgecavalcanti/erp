@@ -1,5 +1,8 @@
 class Partner < ApplicationRecord
   has_many :invoices, dependent: :restrict_with_error
+  has_many :wallets, dependent: :destroy
+  has_many :salespeople, through: :wallets
+  has_many :activities, dependent: :destroy
 
   validates :external_code, presence: true, uniqueness: true
   validates :name, presence: true
