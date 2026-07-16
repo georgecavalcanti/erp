@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_15_200001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_15_210001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -466,6 +466,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_200001) do
     t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
   end
 
+  create_table "stock_levels", force: :cascade do |t|
+    t.decimal "blocked", precision: 15, scale: 4, default: "0.0", null: false
+    t.bigint "company_id"
+    t.datetime "created_at", null: false
+    t.decimal "on_hand", precision: 15, scale: 4, default: "0.0", null: false
+    t.bigint "product_id", null: false
+    t.decimal "reserved", precision: 15, scale: 4, default: "0.0", null: false
+    t.datetime "synced_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id"], name: "index_stock_levels_on_company_id"
+    t.index ["product_id"], name: "index_stock_levels_on_product_id", unique: true
+  end
+
   create_table "sync_runs", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.jsonb "error_messages", default: [], null: false
@@ -543,6 +556,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_200001) do
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "stock_levels", "companies"
+  add_foreign_key "stock_levels", "products"
   add_foreign_key "users", "salespeople"
   add_foreign_key "users", "users", column: "manager_id"
   add_foreign_key "wallets", "partners"

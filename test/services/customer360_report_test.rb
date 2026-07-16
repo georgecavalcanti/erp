@@ -86,4 +86,11 @@ class Customer360ReportTest < ActiveSupport::TestCase
     assert_equal 1, acts.size
     assert_equal "contact", acts.first[:kind]
   end
+
+  test "top_products traz o estoque disponível do snapshot" do
+    @pa.create_stock_level!(on_hand: 100, reserved: 10, blocked: 0, synced_at: Time.current)
+    papel = @report.top_products.find { |p| p[:product] == "PAPEL TOALHA" }
+
+    assert_in_delta 90, papel[:available], 0.001 # 100 − 10
+  end
 end

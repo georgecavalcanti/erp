@@ -71,11 +71,18 @@ class Customer360Report
     end
   end
 
-  # Produtos mais comprados (por receita líquida).
+  # Produtos mais comprados (por receita líquida) com o estoque disponível do
+  # snapshot (rápido; o dado ao vivo por produto vem de Sankhya::LiveQueries).
   def top_products(limit: 10)
     rows = sale_items.where.not(product_id: nil)
-                     .group("products.description").sum("invoice_items.net_value")
-    rows.sort_by { |_, v| -v }.first(limit).map { |desc, value| { product: desc, revenue: value.to_f.round(2) } }
+                     .group("invoice_items.product_id", "products.description").sum("invoice_items.net_value")
+    top = rows.sort_by { |_, v| -v }.first(limit)
+    stock = StockLevel.where(product_id: top.map { |(pid, _desc), _v| pid }).index_by(&:product_id)
+    top.map do |(pid, desc), value|
+      level = stock[pid]
+      { product: desc, revenue: value.to_f.round(2),
+        available: level&.sellable&.to_f, stock_synced_at: level&.synced_at&.iso8601 }
+    end
   end
 
   # Financeiro: inadimplência (overdue_titles) + bloqueio cadastral.

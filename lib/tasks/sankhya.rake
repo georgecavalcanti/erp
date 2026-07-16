@@ -242,6 +242,25 @@ namespace :sankhya do
     exit 1
   end
 
+  desc "DRY-RUN estoque (TGFEST, empresa 1, local 10100) — só lê."
+  task stock_dry: :environment do
+    r = Sankhya::StockSync.new.call(dry_run: true)
+    puts "estoque: #{r[:rows]} linhas, #{r[:stored]} produtos casados, #{r[:missing_product]} sem cadastro. Amostra:"
+    r[:sample].each { |s| puts "  #{s.slice(:product_id, :on_hand, :reserved, :blocked).inspect}" }
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
+
+  desc "Snapshot de estoque (TGFEST) -> stock_levels (delete+insert atômico)."
+  task stock: :environment do
+    r = Sankhya::StockSync.new.call
+    puts "estoque: #{r[:rows]} linhas — #{r[:stored]} gravados, #{r[:missing_product]} sem cadastro#{r[:skipped] ? ' (PULADO: janela vazia)' : ''}"
+  rescue Sankhya::Error => e
+    warn "✗ #{e.class}: #{e.message}"
+    exit 1
+  end
+
   desc "Sync manual de CADASTROS (produtos+parceiros+vendedores+custos). No dia a dia roda pelo Solid Queue — ver SankhyaCatalogSyncJob."
   task sync_catalog: :environment do
     r = Sankhya::CatalogSync.call

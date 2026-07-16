@@ -25,7 +25,7 @@ const props = defineProps<{
   summary: Summary
   monthly: { month: string; net: number; margin: number }[]
   mix: { category: string; revenue: number; share: number }[]
-  topProducts: { product: string; revenue: number }[]
+  topProducts: { product: string; revenue: number; available: number | null; stock_synced_at: string | null }[]
   financial: { blocked: boolean; block_reason: string | null; overdue_open: number; overdue_protested: number; overdue_total: number }
   openOrders: { external_uid: number; negotiation_date: string | null; total_value: number }[]
   activities: { id: number; kind: string; channel: string | null; notes: string | null; occurred_at: string; user: string | null }[]
@@ -104,6 +104,27 @@ function fmtDateTime(iso: string) {
               </div>
             </div>
           </div>
+          <p v-else class="text-sm text-slate-400">Sem itens registrados.</p>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+          <h2 class="mb-3 text-sm font-semibold text-slate-600">Produtos mais comprados</h2>
+          <ul v-if="topProducts.length" class="space-y-1.5 text-sm">
+            <li v-for="p in topProducts" :key="p.product" class="flex items-center justify-between gap-2">
+              <span class="min-w-0 flex-1 truncate text-slate-600">{{ p.product }}</span>
+              <span class="shrink-0 text-right">
+                <span class="tabular-nums text-slate-700">{{ brl(p.revenue) }}</span>
+                <span
+                  v-if="p.available != null"
+                  class="ml-2 inline-block rounded px-1.5 py-0.5 text-xs"
+                  :class="p.available > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'"
+                  :title="p.stock_synced_at ? `estoque de ${new Date(p.stock_synced_at).toLocaleString('pt-BR')}` : ''"
+                >
+                  {{ p.available > 0 ? `${p.available} em estoque` : 'sem estoque' }}
+                </span>
+              </span>
+            </li>
+          </ul>
           <p v-else class="text-sm text-slate-400">Sem itens registrados.</p>
         </div>
       </div>

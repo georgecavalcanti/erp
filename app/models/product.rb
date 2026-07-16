@@ -2,6 +2,8 @@
 # Escrita exclusiva do Sankhya::ProductSync (upsert por CODPROD); `current_cost`
 # é atualizado pelo CostSync (Sprint 2). Itens de nota/pedido apontam para cá.
 class Product < ApplicationRecord
+  has_one :stock_level, dependent: :delete
+
   validates :external_code, presence: true, uniqueness: true
   validates :description, presence: true
 

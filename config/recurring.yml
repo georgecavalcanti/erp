@@ -21,6 +21,12 @@ production:
     schedule: "15 8-19/2 * * * America/Sao_Paulo" # a cada 2h (8h15-18h15) — cadastros mudam devagar (FV360 doc 03)
     description: "Cadastros: produtos, parceiros e vendedores (full upsert)"
 
+  sankhya_stock:
+    class: SankhyaStockSyncJob
+    queue: sankhya
+    schedule: "*/30 8-19 * * * America/Sao_Paulo" # a cada 30min, horário comercial (estado, muda rápido)
+    description: "Snapshot de estoque por produto (TGFEST)"
+
   projection_recalc:
     class: ProjectionRecalcJob
     queue: default

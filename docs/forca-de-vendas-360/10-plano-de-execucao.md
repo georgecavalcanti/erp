@@ -119,9 +119,11 @@ Executada em duas partes: **2A** (itens+custo+margem, feita) e **2B** (pedidos c
 - [x] Escopo de cliente (`AccessPolicy#can_view_partner?`): vendedor só abre/age em cliente da sua carteira — testes de isolamento
 - [x] Testes: agregações do 360 (receita/margem/ticket/frequência/mix/evolução), isolamento do 360/carteira/atividades
 - [x] **Crédito**: já é local (Fase 0: inadimplência `overdue_titles` + bloqueio `partners.blocked/MOTBLOQ`, não `LIMCRED`) — exibido no 360 sem novo sync
-- [ ] `Sankhya::StockSync` (TGFEST) + `stock_levels` + `Sankhya::LiveQueries` (estoque ao vivo com fallback) — **próximo passo (estoque)**
+- [x] `Sankhya::StockSync` (TGFEST, snapshot atômico, GROUP BY CODPROD — soma lotes) + `stock_levels` + recurring 30min + rake `sankhya:stock`
+- [x] `Sankhya::LiveQueries` (estoque ao vivo com fallback ao snapshot + carimbo; unavailable se não houver) — estoque exibido nos produtos do 360
+- [x] Testes: StockSync (snapshot, dedup por soma, guard de janela vazia), LiveQueries (live/snapshot/erro/unavailable), estoque no 360
 
-**Aceite**: ✅ (parcial) vendedor abre qualquer cliente da sua carteira e vê o 360 completo em < 2s (dados locais) com crédito local. Verificado no app real (NATHALIA BEZERRA, 95 clientes, R$3,07M/12m; cliente AVANNTE: receita/margem/mix/pedidos/atividades). **Falta o estoque ao vivo** (TGFEST) para fechar 100% da aceitação. `bin/ci` verde (117 testes).
+**Aceite**: ✅ vendedor abre qualquer cliente da sua carteira e vê o 360 completo em < 2s (dados locais) com crédito local e **estoque** por produto. Validado no app real (NATHALIA BEZERRA, 95 clientes, R$3,07M/12m; AVANNTE 360 com mix, pedidos, atividades e estoque disponível). `TGFEST` conferida em produção (1.412 produtos). `bin/ci` verde (126 testes).
 
 ## Sprint 6 — Recompra, confiança e alertas
 
