@@ -131,15 +131,15 @@ Executada em duas partes: **2A** (itens+custo+margem, feita) e **2B** (pedidos c
 
 **Escopo PDF**: modelo inicial de recompra; confiança; alertas.
 
-- [ ] `Engines::Repurchase` estágio estatístico (doc 05.2) + tabela `repurchase_predictions`
-- [ ] Job noturno de previsão em lote (madrugada)
-- [ ] Confirmação automática: compra real → `status=confirmed` + `confirmed_invoice_id`; expiração → `missed`
-- [ ] `Engines::Risk` + `Engines::ConsumptionDrop` (doc 05.3) → status da carteira
-- [ ] Status de risco na `Wallet.vue` (chips: saudável/atenção/risco/inativo/recompra atrasada…)
-- [ ] Tabela `alerts` + `Alerts::ScanJob` (integração, dados, conciliação, negócio — doc 09)
-- [ ] Testes: previsão com históricos sintéticos (regular, irregular, sazonal), transições de status
+- [x] `Engines::Repurchase` estágio estatístico (doc 05.2) + tabela `repurchase_predictions` — 3 níveis (cliente/categoria/produto); data esperada = última compra + mediana do intervalo; confiança = fator de ciclos × regularidade (∝ ciclos, ∝ 1/dispersão, teto 95). Não prevê o que já está em pedido aberto. Motor puro (`#call`) + persistência idempotente (`#persist!`) — índice parcial único (1 aberta por alvo)
+- [x] Job noturno de previsão em lote (madrugada) — `RepurchaseForecastJob` (`config/recurring.yml` 02:30, só produção) + rake `repurchase:forecast`; por parceiro com carteira vigente
+- [x] Confirmação automática: compra real → `status=confirmed` + `confirmed_invoice_id`; expiração → `missed` (`#reconcile!`, roda antes do `persist!`). **Guarda de obsolescência**: só gera previsão viva dentro da tolerância (~1 ciclo, 15–90d) — além disso é caso de inatividade, evitando churn de previsões perpetuamente atrasadas
+- [x] `Engines::Risk` + `Engines::ConsumptionDrop` (doc 05.3) → status da carteira — 6 estados (novo em ativação/saudável/em expansão/em atenção/em risco/inativo); sinais de recompra atrasada, inadimplência, queda de consumo, recência, contato; `classify_many` agregado (sem N+1)
+- [x] Status de risco na `Wallet.vue` (chips) + no Cliente 360 (badge + sinais + seção "Recompra prevista" com data/valor/confiança e marca "atrasada")
+- [x] Tabela `alerts` + `Alerts::ScanJob` (integração `sync atrasado/falho` via sync_runs, dados, conciliação nota×itens, negócio meta/projeção — doc 09) — dedup por `key`, resolve o que cessou; recurring de hora em hora + rake `alerts:scan`
+- [x] Testes: previsão com históricos sintéticos (regular, irregular, sazonal, poucos ciclos), transições open→confirmed/missed, classificação de risco, isolamento (A não vê recompra/risco de B) — **+53 testes (133→186), `bin/ci` verde**
 
-**Aceite**: critério MVP 6 (recompra com data, valor e confiança); recompras atrasadas aparecem na carteira.
+**Aceite**: ✅ critério MVP 6 — recompra com data, valor e confiança (validado no dado real: 15.519 previsões / 1.213 parceiros / 3.920 atrasadas). Recompras atrasadas aparecem na carteira (chip "Recompra atrasada" + contador no resumo). Verificado no app real (admin, 4799 clientes com distribuição de status e sinais).
 
 ## Sprint 7 — Priorização, plano diário e registro de resultados
 
