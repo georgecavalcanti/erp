@@ -1,9 +1,10 @@
-# Minha Carteira (doc 08.11.3): os clientes da carteira do usuário, com
-# segmentação BÁSICA por recência de compra (status de risco só na Sprint 6).
-# Escopo: authorized_partner_ids (vendedor → sua carteira; gestor/admin → todas).
+# Minha Carteira (doc 08.11.3): os clientes da carteira do usuário, com o STATUS
+# de risco (Engines::Risk — Sprint 6) e os sinais (recompra atrasada, inadimplência,
+# queda de consumo…). Escopo: authorized_partner_ids (vendedor → sua carteira;
+# gestor/admin → todas). O motor classifica só os ids autorizados — o isolamento é
+# garantido pelo recorte, não pelo motor.
 class WalletController < ApplicationController
   PER_PAGE = 30
-  SEGMENTS = %w[ativo atencao inativo sem_compra].freeze
 
   def index
     partner_ids = access.authorized_partner_ids # nil = irrestrito
@@ -17,21 +18,22 @@ class WalletController < ApplicationController
     partners = base.to_a
     ids = partners.map(&:id)
     net12 = net_by_partner(ids)
-    last_purchase = Invoice.confirmed_only.sales.where(partner_id: ids).group(:partner_id).maximum(:negotiation_date)
+    risk = Engines::Risk.classify_many(ids) # status + sinais + recência, em queries agregadas
 
     clients = partners.map do |p|
-      lp = last_purchase[p.id]
-      days = lp ? (Date.current - lp).to_i : nil
+      r = risk[p.id] || {}
       {
         id: p.id, name: p.name, city: p.city, state: p.state, blocked: p.blocked,
-        revenue_12m: (net12[p.id] || 0.0).round(2), last_purchase_on: lp, days_since: days,
-        segment: segment_for(days)
+        revenue_12m: (net12[p.id] || 0.0).round(2),
+        last_purchase_on: r[:last_purchase_on], days_since: r[:days_since_purchase],
+        status: r[:status]&.to_s, status_label: r[:status_label], signals: r[:signals] || [],
+        repurchase_overdue: r[:repurchase_overdue].to_i
       }
     end.sort_by { |c| -c[:revenue_12m] }
 
-    segment_counts = SEGMENTS.index_with { |s| clients.count { |c| c[:segment] == s } }
-    seg = params[:segment].presence
-    filtered = seg ? clients.select { |c| c[:segment] == seg } : clients
+    status_counts = Engines::Risk::STATUSES.index_with { |s| clients.count { |c| c[:status] == s } }
+    seg = params[:status].presence
+    filtered = seg ? clients.select { |c| c[:status] == seg } : clients
 
     page = [ params[:page].to_i, 1 ].max
     total = filtered.size
@@ -39,10 +41,13 @@ class WalletController < ApplicationController
 
     render inertia: "Wallet", props: {
       clients: paged,
-      segments: segment_counts,
-      summary: { total: clients.size, revenue_12m: clients.sum { |c| c[:revenue_12m] }.round(2) },
+      statuses: status_counts,
+      summary: {
+        total: clients.size, revenue_12m: clients.sum { |c| c[:revenue_12m] }.round(2),
+        repurchase_overdue: clients.count { |c| c[:repurchase_overdue].positive? }
+      },
       pagination: { page: page, per: PER_PAGE, total: total, pages: (total.to_f / PER_PAGE).ceil },
-      filters: { q: q.presence, segment: seg }
+      filters: { q: q.presence, status: seg }
     }
   end
 
@@ -59,14 +64,5 @@ class WalletController < ApplicationController
     sales.each { |pid, v| net[pid] += v.to_f }
     returns.each { |pid, v| net[pid] -= v.to_f }
     net
-  end
-
-  # Segmentação básica por recência (sem motor de risco — Sprint 6).
-  def segment_for(days)
-    return "sem_compra" if days.nil?
-    return "ativo" if days <= 30
-    return "atencao" if days <= 90
-
-    "inativo"
   end
 end

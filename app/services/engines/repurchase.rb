@@ -121,14 +121,13 @@ module Engines
     def product_predictions
       series = item_series(%w[product_id description])
       blocked = open_order_product_ids
-      preds = series.filter_map do |(product_id, description), events|
+      preds = series.filter_map do |(product_id, _description), events|
         next if blocked.include?(product_id)
 
         stats = predict(events, ITEM_MIN_EVENTS)
         next unless stats
 
-        base_prediction(:product, "product:#{product_id}", stats)
-          .merge(product_id: product_id, category_name: description)
+        base_prediction(:product, "product:#{product_id}", stats).merge(product_id: product_id)
       end
       top(preds)
     end

@@ -83,9 +83,9 @@ module Engines
 
       {
         status: status, status_label: STATUS_LABELS[status], signals: signals,
-        days_since_purchase: days_since_purchase, days_since_contact: days_since_contact,
-        overdue_amount: overdue_amount.round(2), repurchase_overdue: repurchase_overdue,
-        consumption: consumption
+        last_purchase_on: last_purchase, days_since_purchase: days_since_purchase,
+        days_since_contact: days_since_contact, overdue_amount: overdue_amount.round(2),
+        repurchase_overdue: repurchase_overdue, consumption: consumption
       }
     end
 

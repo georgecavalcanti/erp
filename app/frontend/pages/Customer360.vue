@@ -19,10 +19,24 @@ interface Summary {
   purchases_12m: number; active_months_12m: number; avg_interval_days: number | null
 }
 interface KindOption { value: string; label: string }
+interface Signal { key: string; label: string; severity: string }
+interface Risk {
+  status: string; status_label: string; signals: Signal[]
+  days_since_purchase: number | null; days_since_contact: number | null
+  overdue_amount: number; repurchase_overdue: number
+  consumption: { recent_net: number; baseline_net: number; drop_percent: number | null; absolute_lost: number; trend: string } | null
+}
+interface Repurchase {
+  level: string; label: string; expected_date: string | null; overdue: boolean
+  expected_value: number | null; expected_quantity: number | null
+  confidence: number | null; interval_days: number | null; cycles: number | null
+}
 
 const props = defineProps<{
   identification: Identification
   summary: Summary
+  risk: Risk
+  repurchase: Repurchase[]
   monthly: { month: string; net: number; margin: number }[]
   mix: { category: string; revenue: number; share: number }[]
   topProducts: { product: string; revenue: number; available: number | null; stock_synced_at: string | null }[]
@@ -34,6 +48,17 @@ const props = defineProps<{
 
 const maxNet = computed(() => Math.max(1, ...props.monthly.map((m) => Math.abs(m.net))))
 const kindLabel = (k: string) => props.activityKinds.find((o) => o.value === k)?.label ?? k
+
+// Tom dos 6 status de risco (doc 05.3).
+const STATUS_TONE: Record<string, string> = {
+  saudavel: 'text-emerald-700 bg-emerald-50', em_expansao: 'text-teal-700 bg-teal-50',
+  novo_em_ativacao: 'text-sky-700 bg-sky-50', em_atencao: 'text-amber-700 bg-amber-50',
+  em_risco: 'text-red-700 bg-red-50', inativo: 'text-slate-600 bg-slate-100',
+}
+const SIGNAL_TONE: Record<string, string> = {
+  high: 'text-red-700 bg-red-50 ring-red-200', medium: 'text-amber-700 bg-amber-50 ring-amber-200',
+  low: 'text-slate-600 bg-slate-100 ring-slate-200', info: 'text-teal-700 bg-teal-50 ring-teal-200',
+}
 
 const form = useForm({ partner_id: props.identification.id, kind: 'contact', channel: '', notes: '' })
 function register() {
@@ -50,8 +75,11 @@ function fmtDateTime(iso: string) {
     <!-- Cabeçalho -->
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <h1 class="text-xl font-semibold text-slate-800">{{ identification.name }}</h1>
+          <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS_TONE[risk.status] ?? STATUS_TONE.inativo">
+            {{ risk.status_label }}
+          </span>
           <span v-if="identification.blocked" class="rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
             bloqueado
           </span>
@@ -63,6 +91,16 @@ function fmtDateTime(iso: string) {
           <span v-if="identification.segment"> · {{ identification.segment }}</span>
           <span v-if="identification.salesperson"> · vendedor {{ identification.salesperson }}</span>
         </p>
+        <div v-if="risk.signals.length" class="mt-1.5 flex flex-wrap gap-1">
+          <span
+            v-for="sig in risk.signals"
+            :key="sig.key"
+            class="rounded px-1.5 py-0.5 text-xs font-medium ring-1"
+            :class="SIGNAL_TONE[sig.severity] ?? SIGNAL_TONE.low"
+          >
+            {{ sig.label }}
+          </span>
+        </div>
       </div>
       <Link href="/minha-carteira" class="text-sm font-medium text-slate-500 hover:underline">← Minha carteira</Link>
     </div>
@@ -156,6 +194,31 @@ function fmtDateTime(iso: string) {
             </li>
           </ul>
           <p v-else class="text-sm text-slate-400">Nenhum pedido pendente.</p>
+        </div>
+
+        <!-- Recompra prevista (Sprint 6, doc 05.2) -->
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+          <h2 class="mb-3 text-sm font-semibold text-slate-600">Recompra prevista</h2>
+          <ul v-if="repurchase.length" class="space-y-2 text-sm">
+            <li v-for="(r, i) in repurchase" :key="i" class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span class="truncate text-slate-700">{{ r.label }}</span>
+                  <span v-if="r.overdue" class="shrink-0 rounded bg-amber-50 px-1 py-0.5 text-[10px] font-medium text-amber-700">atrasada</span>
+                </div>
+                <div class="text-xs text-slate-400">
+                  {{ r.expected_date ? dateBR(r.expected_date) : '—' }}
+                  <span v-if="r.expected_quantity"> · {{ r.expected_quantity }} un</span>
+                  · a cada {{ r.interval_days }}d
+                </div>
+              </div>
+              <div class="shrink-0 text-right">
+                <div class="tabular-nums text-slate-700">{{ r.expected_value != null ? brl(r.expected_value) : '—' }}</div>
+                <div class="text-xs text-slate-400">{{ r.confidence }}% confiança</div>
+              </div>
+            </li>
+          </ul>
+          <p v-else class="text-sm text-slate-400">Sem previsão de recompra ativa.</p>
         </div>
       </div>
     </div>

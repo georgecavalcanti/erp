@@ -8,6 +8,11 @@ import type { Pagination as PaginationType } from '@/types/models'
 
 defineOptions({ layout: AppLayout })
 
+interface Signal {
+  key: string
+  label: string
+  severity: string
+}
 interface Client {
   id: number
   name: string
@@ -17,35 +22,49 @@ interface Client {
   revenue_12m: number
   last_purchase_on: string | null
   days_since: number | null
-  segment: string
+  status: string | null
+  status_label: string | null
+  signals: Signal[]
+  repurchase_overdue: number
 }
 
 const props = defineProps<{
   clients: Client[]
-  segments: Record<string, number>
-  summary: { total: number; revenue_12m: number }
+  statuses: Record<string, number>
+  summary: { total: number; revenue_12m: number; repurchase_overdue: number }
   pagination: PaginationType
-  filters: { q: string | null; segment: string | null }
+  filters: { q: string | null; status: string | null }
 }>()
 
-const SEGMENTS = [
-  { key: 'ativo', label: 'Ativos', tone: 'text-emerald-700 bg-emerald-50' },
-  { key: 'atencao', label: 'Em atenção', tone: 'text-amber-700 bg-amber-50' },
-  { key: 'inativo', label: 'Inativos', tone: 'text-red-700 bg-red-50' },
-  { key: 'sem_compra', label: 'Sem compra', tone: 'text-slate-600 bg-slate-100' },
+// Os 6 status do motor de risco (doc 05.3), na ordem saudável → crítico.
+const STATUSES = [
+  { key: 'saudavel', label: 'Saudável', tone: 'text-emerald-700 bg-emerald-50' },
+  { key: 'em_expansao', label: 'Em expansão', tone: 'text-teal-700 bg-teal-50' },
+  { key: 'novo_em_ativacao', label: 'Novo em ativação', tone: 'text-sky-700 bg-sky-50' },
+  { key: 'em_atencao', label: 'Em atenção', tone: 'text-amber-700 bg-amber-50' },
+  { key: 'em_risco', label: 'Em risco', tone: 'text-red-700 bg-red-50' },
+  { key: 'inativo', label: 'Inativo', tone: 'text-slate-600 bg-slate-100' },
 ] as const
+
+// Tom dos sinais por severidade.
+const SIGNAL_TONE: Record<string, string> = {
+  high: 'text-red-700 bg-red-50 ring-red-200',
+  medium: 'text-amber-700 bg-amber-50 ring-amber-200',
+  low: 'text-slate-600 bg-slate-100 ring-slate-200',
+  info: 'text-teal-700 bg-teal-50 ring-teal-200',
+}
 
 const q = ref(props.filters.q ?? '')
 
 function apply(extra: Record<string, string | undefined> = {}) {
-  router.get('/minha-carteira', { q: q.value || undefined, segment: props.filters.segment || undefined, ...extra },
+  router.get('/minha-carteira', { q: q.value || undefined, status: props.filters.status || undefined, ...extra },
     { preserveState: true, preserveScroll: true })
 }
-function toggleSegment(seg: string) {
-  apply({ segment: props.filters.segment === seg ? undefined : seg })
+function toggleStatus(status: string) {
+  apply({ status: props.filters.status === status ? undefined : status })
 }
-function segMeta(key: string) {
-  return SEGMENTS.find((s) => s.key === key)
+function statusMeta(key: string | null) {
+  return STATUSES.find((s) => s.key === key)
 }
 </script>
 
@@ -56,19 +75,22 @@ function segMeta(key: string) {
       <h1 class="text-xl font-semibold text-slate-800">Minha carteira</h1>
       <p class="text-sm text-slate-500">
         {{ summary.total }} clientes · {{ brl(summary.revenue_12m) }} nos últimos 12 meses
+        <span v-if="summary.repurchase_overdue > 0" class="ml-1 font-medium text-amber-700">
+          · {{ summary.repurchase_overdue }} com recompra atrasada
+        </span>
       </p>
     </div>
 
-    <!-- Segmentos por recência -->
+    <!-- Status de risco (Sprint 6) -->
     <div class="flex flex-wrap gap-2">
       <button
-        v-for="s in SEGMENTS"
+        v-for="s in STATUSES"
         :key="s.key"
         class="rounded-full px-3 py-1.5 text-sm font-medium transition"
-        :class="[s.tone, filters.segment === s.key ? 'ring-2 ring-offset-1 ring-slate-400' : 'opacity-80 hover:opacity-100']"
-        @click="toggleSegment(s.key)"
+        :class="[s.tone, filters.status === s.key ? 'ring-2 ring-offset-1 ring-slate-400' : 'opacity-80 hover:opacity-100']"
+        @click="toggleStatus(s.key)"
       >
-        {{ s.label }} · {{ segments[s.key] ?? 0 }}
+        {{ s.label }} · {{ statuses[s.key] ?? 0 }}
       </button>
     </div>
 
@@ -91,8 +113,8 @@ function segMeta(key: string) {
         <thead class="bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
           <tr>
             <th class="px-4 py-3">Cliente</th>
-            <th class="px-4 py-3">Local</th>
-            <th class="px-4 py-3">Situação</th>
+            <th class="px-4 py-3">Status</th>
+            <th class="px-4 py-3">Sinais</th>
             <th class="px-4 py-3">Última compra</th>
             <th class="px-4 py-3 text-right">Receita 12m</th>
             <th class="px-4 py-3"></th>
@@ -103,12 +125,25 @@ function segMeta(key: string) {
             <td class="px-4 py-3 font-medium text-slate-700">
               {{ c.name }}
               <span v-if="c.blocked" class="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700">bloqueado</span>
+              <div class="text-xs font-normal text-slate-400">{{ [c.city, c.state].filter(Boolean).join(' / ') || '—' }}</div>
             </td>
-            <td class="px-4 py-3 text-slate-600">{{ [c.city, c.state].filter(Boolean).join(' / ') || '—' }}</td>
             <td class="px-4 py-3">
-              <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="segMeta(c.segment)?.tone">
-                {{ segMeta(c.segment)?.label.replace(/s$/, '') }}
+              <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="statusMeta(c.status)?.tone">
+                {{ c.status_label ?? '—' }}
               </span>
+            </td>
+            <td class="px-4 py-3">
+              <div class="flex flex-wrap gap-1">
+                <span
+                  v-for="sig in c.signals"
+                  :key="sig.key"
+                  class="rounded px-1.5 py-0.5 text-xs font-medium ring-1"
+                  :class="SIGNAL_TONE[sig.severity] ?? SIGNAL_TONE.low"
+                >
+                  {{ sig.label }}
+                </span>
+                <span v-if="c.signals.length === 0" class="text-xs text-slate-300">—</span>
+              </div>
             </td>
             <td class="px-4 py-3 text-slate-500">
               {{ c.last_purchase_on ? dateBR(c.last_purchase_on) : '—' }}
