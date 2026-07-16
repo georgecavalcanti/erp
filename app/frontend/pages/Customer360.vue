@@ -83,9 +83,12 @@ function fmtDateTime(iso: string) {
       <div class="space-y-6 lg:col-span-2">
         <div class="rounded-xl border border-slate-200 bg-white p-5">
           <h2 class="mb-3 text-sm font-semibold text-slate-600">Evolução mensal (líquido)</h2>
-          <div class="flex items-end gap-1" style="height: 120px">
-            <div v-for="m in monthly" :key="m.month" class="flex flex-1 flex-col items-center justify-end gap-1" :title="`${m.month}: ${brl(m.net)}`">
-              <div class="w-full rounded-t bg-indigo-400" :style="{ height: Math.round((Math.abs(m.net) / maxNet) * 100) + '%' }"></div>
+          <div class="flex items-stretch gap-1" style="height: 120px">
+            <div v-for="m in monthly" :key="m.month" class="flex flex-1 flex-col items-center gap-1" :title="`${m.month}: ${brl(m.net)}`">
+              <!-- trilho com altura definida: dá referência para o height:% da barra -->
+              <div class="flex w-full flex-1 items-end">
+                <div class="w-full rounded-t bg-indigo-400" :style="{ height: Math.round((Math.abs(m.net) / maxNet) * 100) + '%' }"></div>
+              </div>
               <span class="text-[10px] text-slate-400">{{ m.month.slice(5) }}</span>
             </div>
           </div>
