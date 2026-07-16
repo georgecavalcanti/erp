@@ -15,6 +15,10 @@ module Alerts
     RECON_TOLERANCE = 1.0      # R$ de tolerância entre total da nota e Σ itens
     RECON_LOOKBACK_DAYS = 90
     BUSINESS_TZ = "America/Sao_Paulo".freeze
+    # Chaves avaliadas SÓ em horário comercial (sem sync agendado à noite). Fora dele
+    # não são reavaliadas — e por isso NÃO podem ser resolvidas (senão o resolvedor
+    # trataria "não avaliado" como "condição cessou").
+    SYNC_GATED_KEYS = %w[sync_late sync_missing].freeze
 
     def self.call(as_of: Time.current)
       new(as_of).call
@@ -26,14 +30,17 @@ module Alerts
 
     def call
       findings = integration + data + reconciliation + business
-      sync!(findings)
+      preserved = business_hours? ? [] : SYNC_GATED_KEYS
+      sync!(findings, preserved)
     end
 
     private
 
     # ---- Sincronização do quadro de alertas -------------------------------------
 
-    def sync!(findings)
+    # `preserved`: chaves de checks NÃO avaliados nesta varredura — ficam de fora da
+    # resolução (não são disparadas nem resolvidas).
+    def sync!(findings, preserved = [])
       keys = findings.map { |f| f[:key] }
       stats = { created: 0, updated: 0, resolved: 0, firing: keys.size }
       Alert.transaction do
@@ -48,7 +55,7 @@ module Alerts
             stats[:updated] += 1
           end
         end
-        stats[:resolved] = Alert.open.where.not(key: keys).update_all(resolved_at: @as_of)
+        stats[:resolved] = Alert.open.where.not(key: keys + preserved).update_all(resolved_at: @as_of)
       end
       stats
     end
@@ -117,9 +124,12 @@ module Alerts
 
     def reconciliation
       since = @as_of.to_date - RECON_LOOKBACK_DAYS
-      divergent = Invoice.confirmed_only.where("negotiation_date >= ?", since).where.not(items_synced_at: nil)
-                         .joins("JOIN (SELECT invoice_id, SUM(net_value) s FROM invoice_items GROUP BY invoice_id) it ON it.invoice_id = invoices.id")
-                         .where("ABS(invoices.total_value - it.s) > ?", RECON_TOLERANCE).count
+      # Só as notas confirmadas da janela (com itens). Agregar os itens SÓ dessas
+      # notas (via IN) — não a tabela invoice_items inteira, que cresce sem limite.
+      window = Invoice.confirmed_only.where("negotiation_date >= ?", since).where.not(items_synced_at: nil)
+      totals = window.pluck(:id, :total_value).to_h
+      sums = InvoiceItem.where(invoice_id: window.select(:id)).group(:invoice_id).sum(:net_value)
+      divergent = sums.count { |iid, s| (totals[iid].to_d - s).abs > RECON_TOLERANCE }
       return [] if divergent.zero?
 
       [ finding(:reconciliation, :medium, "recon_invoice_items_mismatch", "Divergência nota × itens",
@@ -136,7 +146,10 @@ module Alerts
                                      .pluck(:id)
       return [] if active_seller_ids.empty?
 
-      no_goal_ids = active_seller_ids - Goal.for_period(period).where(salesperson_id: active_seller_ids).distinct.pluck(:salesperson_id)
+      # Só a meta de FATURAMENTO (revenue) conta — é a que o alerta anuncia e a que
+      # Engines::Projection consome. Uma meta de margem/mix/ativação não supre.
+      with_goal = Goal.for_period(period).where(salesperson_id: active_seller_ids, kind: :revenue).distinct.pluck(:salesperson_id)
+      no_goal_ids = active_seller_ids - with_goal
       findings = Salesperson.where(id: no_goal_ids).map do |sp|
         finding(:business, :medium, "seller_no_goal:#{sp.id}", "Vendedor sem meta",
                 "#{sp.nickname} sem meta de faturamento em #{period.strftime('%m/%Y')}.", entity: sp)
@@ -162,9 +175,12 @@ module Alerts
       end
     end
 
+    # Horário comercial (São Paulo). Hora 19 INCLUÍDA para casar com o cron
+    # (`20 8-19`) e o sync (que roda até ~19:30) — senão a varredura das 19:20
+    # ficaria sem avaliar o atraso e resolveria o alerta indevidamente.
     def business_hours?
       t = @as_of.in_time_zone(BUSINESS_TZ)
-      (1..5).cover?(t.wday) && (8...19).cover?(t.hour)
+      (1..5).cover?(t.wday) && (8..19).cover?(t.hour)
     end
   end
 end

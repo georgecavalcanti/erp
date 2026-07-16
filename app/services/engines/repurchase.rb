@@ -45,15 +45,18 @@ module Engines
     end
 
     # Grava as previsões abertas de forma IDEMPOTENTE: se já existe uma aberta para
-    # o alvo com a MESMA âncora (última compra), não duplica; se a âncora mudou,
-    # cancela a antiga (superada) e grava a nova. Casado com o índice parcial único.
+    # o alvo com a MESMA previsão (âncora, data esperada e intervalo), não duplica;
+    # se QUALQUER um mudou, cancela a antiga (superada) e grava a nova. Comparar a
+    # data esperada — não só a âncora — cobre a mutação no MEIO do histórico (ex.:
+    # estorno de nota intermediária pelo reconcile do sync muda a mediana/expected
+    # sem mexer na última compra). Casado com o índice parcial único.
     def persist!
       created = []
       RepurchasePrediction.transaction do
         call.each do |pred|
           existing = RepurchasePrediction.status_open.find_by(partner_id: @partner.id, target_key: pred[:target_key])
           if existing
-            next if existing.last_purchase_on == pred[:last_purchase_on] # nada mudou
+            next if unchanged?(existing, pred) # nada mudou
 
             existing.update!(status: :canceled, resolved_at: Time.current) # superada por recálculo
           end
@@ -103,7 +106,10 @@ module Engines
     # Nível CATEGORIA: cadência por grupo de produto (TGFGRU). Pula categorias já
     # presentes em pedido aberto.
     def category_predictions
-      series = item_series(%w[code name])
+      # Sem quantidade: uma categoria (TGFGRU) reúne SKUs de UNIDADES diferentes
+      # (PAR, UN, KG…); somar quantidades seria um número sem sentido. A quantidade
+      # esperada só existe no nível PRODUTO.
+      series = item_series(%w[code name], track_quantity: false)
       blocked = open_order_category_codes
       preds = series.filter_map do |(code, name), events|
         next if code.nil? || code.zero? || blocked.include?(code) # 0/nil = sem grupo real
@@ -119,7 +125,7 @@ module Engines
 
     # Nível PRODUTO: cadência por SKU. Pula produtos já presentes em pedido aberto.
     def product_predictions
-      series = item_series(%w[product_id description])
+      series = item_series(%w[product_id description], track_quantity: true)
       blocked = open_order_product_ids
       preds = series.filter_map do |(product_id, _description), events|
         next if blocked.include?(product_id)
@@ -136,7 +142,7 @@ module Engines
     # [{date, value, quantity}, ...] }. Só itens de VENDA com produto cadastrado.
     # `keys` seleciona as colunas de agrupamento (código+nome da categoria, ou
     # id+descrição do produto).
-    def item_series(kind)
+    def item_series(kind, track_quantity:)
       group_cols =
         if kind == %w[code name]
           [ Arel.sql("products.category_external_code"), Arel.sql("products.category_name") ]
@@ -145,11 +151,12 @@ module Engines
         end
       base = sale_items.group(*group_cols, Arel.sql("invoices.negotiation_date"))
       values = base.sum("invoice_items.net_value")
-      quantities = base.sum("invoice_items.quantity")
+      quantities = track_quantity ? base.sum("invoice_items.quantity") : {}
 
       series = Hash.new { |h, k| h[k] = [] }
       values.each do |(k1, k2, date), value|
-        series[[ k1, k2 ]] << { date: date, value: value.to_d, quantity: quantities[[ k1, k2, date ]].to_d }
+        qty = track_quantity ? quantities[[ k1, k2, date ]].to_d : nil
+        series[[ k1, k2 ]] << { date: date, value: value.to_d, quantity: qty }
       end
       series
     end
@@ -226,14 +233,17 @@ module Engines
 
     # ---- Conciliação (aprendizado) ----------------------------------------------
 
-    # Primeira venda do ALVO após a âncora (última compra que gerou a previsão).
+    # Primeira RECOMPRA REAL do alvo após a âncora. Exige valor líquido > 0: uma
+    # linha bonificada (brinde, net_value 0 — comum em distribuidora) NÃO confirma a
+    # recompra, coerente com a geração, que ignora dia líquido ≤ 0 (predict).
     def confirming_invoice(pred)
       scope = Invoice.confirmed_only.sales.where(partner_id: @partner.id)
-                     .where("negotiation_date > ?", pred.last_purchase_on).order(:negotiation_date)
+                     .where("negotiation_date > ?", pred.last_purchase_on)
+                     .where("total_value > 0").order(:negotiation_date)
       case pred.level
       when "customer" then scope.first
       when "category" then scope.where(id: category_item_invoice_ids(pred.category_external_code)).first
-      when "product"  then scope.where(id: InvoiceItem.where(product_id: pred.product_id).select(:invoice_id)).first
+      when "product"  then scope.where(id: paid_item_invoice_ids(product_id: pred.product_id)).first
       end
     end
 
@@ -277,15 +287,30 @@ module Engines
                  .where(invoices: { partner_id: @partner.id, confirmed: true, kind: Invoice.kinds[:sale] })
     end
 
+    # invoice_ids com um item PAGO (net_value > 0) da categoria — brinde não conta.
     def category_item_invoice_ids(code)
       InvoiceItem.joins("INNER JOIN products ON products.id = invoice_items.product_id")
-                 .where(products: { category_external_code: code }).select(:invoice_id)
+                 .where(products: { category_external_code: code }).where("invoice_items.net_value > 0")
+                 .select(:invoice_id)
+    end
+
+    # invoice_ids com um item PAGO (net_value > 0) do produto — brinde não conta.
+    def paid_item_invoice_ids(product_id:)
+      InvoiceItem.where(product_id: product_id).where("net_value > 0").select(:invoice_id)
     end
 
     # ---- Montagem ---------------------------------------------------------------
 
     def base_prediction(level, target_key, stats)
       { level: level, target_key: target_key, **stats }
+    end
+
+    # A previsão aberta ainda reflete o cálculo atual? (âncora + data esperada +
+    # intervalo). Se algo mudou, a antiga é superada.
+    def unchanged?(existing, pred)
+      existing.last_purchase_on == pred[:last_purchase_on] &&
+        existing.expected_date == pred[:expected_date] &&
+        existing.interval_days == pred[:interval_days]
     end
 
     # Mantém só as previsões mais relevantes por nível (mais ciclos, depois maior

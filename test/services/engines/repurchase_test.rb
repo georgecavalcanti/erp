@@ -151,6 +151,8 @@ module Engines
       assert pred, "esperava previsão de categoria 9009"
       assert_equal 25, pred[:interval_days]
       assert_equal "Grupo 9", pred[:category_name]
+      # Categoria reúne SKUs de unidades diferentes → sem quantidade esperada.
+      assert_nil pred[:expected_quantity]
     end
 
     test "produto/categoria: exige ≥3 compras (poucos ciclos não geram item)" do
@@ -216,6 +218,55 @@ module Engines
 
       assert_equal 1, res[:missed]
       assert_predicate pred.reload, :status_missed?
+    end
+
+    test "reconcile!: item bonificado (líquido 0) NÃO confirma a recompra do produto" do
+      prod = product_with_category
+      base = Date.new(2026, 5, 1)
+      4.times { |i| item_sale(@partner, base + (i * 20), prod, net: 300, qty: 10) }
+      Engines::Repurchase.new(@partner, as_of: AS_OF).persist!
+      pred = RepurchasePrediction.status_open.find_by(partner_id: @partner.id, target_key: "product:#{prod.id}")
+      assert pred, "esperava previsão de produto"
+
+      # Nota paga (total 500) com o produto-alvo como BRINDE (net 0). O cliente
+      # comprou algo (nível cliente confirma), mas o PRODUTO foi brinde → sua
+      # previsão segue aberta.
+      inv = sale(@partner, pred.last_purchase_on + 10, 500)
+      InvoiceItem.create!(invoice: inv, product: prod, external_sequence: 1, quantity: 5, net_value: 0, gross_value: 0)
+      Engines::Repurchase.new(@partner).reconcile!(as_of: pred.last_purchase_on + 12)
+
+      assert_predicate pred.reload, :status_open? # brinde não confirma o produto
+    end
+
+    test "reconcile!: item pago (líquido > 0) confirma a recompra do produto" do
+      prod = product_with_category
+      base = Date.new(2026, 5, 1)
+      4.times { |i| item_sale(@partner, base + (i * 20), prod, net: 300, qty: 10) }
+      Engines::Repurchase.new(@partner, as_of: AS_OF).persist!
+      pred = RepurchasePrediction.status_open.find_by(partner_id: @partner.id, target_key: "product:#{prod.id}")
+
+      inv = item_sale(@partner, pred.last_purchase_on + 10, prod, net: 300, qty: 10) # recompra real
+      Engines::Repurchase.new(@partner).reconcile!(as_of: pred.last_purchase_on + 12)
+
+      assert_predicate pred.reload, :status_confirmed?
+      assert_equal inv.id, pred.confirmed_invoice_id
+    end
+
+    test "persist!: supera a aberta quando nota INTERMEDIÁRIA some (âncora igual, expected muda)" do
+      # D0,D30,D60,D90 → mediana 30, expected D120. Última compra (âncora) = D90.
+      base = Date.new(2026, 3, 22)
+      d = [ 0, 30, 60, 90 ].map { |o| sale(@partner, base + o, 1_000) }
+      Engines::Repurchase.new(@partner, as_of: AS_OF).persist!
+      old = RepurchasePrediction.status_open.find_by(partner_id: @partner.id, target_key: "customer")
+      assert_equal base + 120, old.expected_date
+
+      d[2].destroy! # estorno da nota do meio (D60): âncora segue D90, mas a mediana muda
+      Engines::Repurchase.new(@partner, as_of: AS_OF).persist!
+
+      assert_predicate old.reload, :status_canceled?
+      fresh = RepurchasePrediction.status_open.find_by(partner_id: @partner.id, target_key: "customer")
+      assert_equal 45, fresh.interval_days              # mediana de [30,60]
+      assert_equal base + 90 + 45, fresh.expected_date  # D135, corrigido
     end
 
     test "reconcile!: dentro da carência não marca missed" do

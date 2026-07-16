@@ -6,6 +6,7 @@ module Alerts
     # Quinta-feira, 14h em São Paulo (dentro do horário comercial).
     BIZ = Time.new(2026, 7, 16, 14, 0, 0, "-03:00")
     NIGHT = Time.new(2026, 7, 16, 2, 0, 0, "-03:00")
+    HOUR_19 = Time.new(2026, 7, 16, 19, 20, 0, "-03:00") # última varredura do cron (20 8-19)
 
     def keys(as_of = BIZ)
       Alerts::Scan.call(as_of: as_of)
@@ -27,6 +28,20 @@ module Alerts
     test "sync atrasado NÃO dispara de madrugada (sem sync agendado)" do
       SyncRun.create!(finished_at: NIGHT - 5.hours, status: "ok")
       assert_not_includes keys(NIGHT), "sync_late"
+    end
+
+    test "às 19:20 (última varredura) o atraso AINDA é avaliado (hora 19 é comercial)" do
+      SyncRun.create!(finished_at: HOUR_19 - 3.hours, status: "ok")
+      assert_includes keys(HOUR_19), "sync_late"
+    end
+
+    test "varredura fora do horário NÃO resolve um sync_late já aberto (só não reavalia)" do
+      SyncRun.create!(finished_at: BIZ - 3.hours, status: "ok")
+      Alerts::Scan.call(as_of: BIZ)
+      assert Alert.open.exists?(key: "sync_late")
+
+      Alerts::Scan.call(as_of: NIGHT) # de madrugada não avalia o atraso
+      assert Alert.open.exists?(key: "sync_late"), "não deve resolver um check que não foi reavaliado"
     end
 
     test "falha na última sincronização dispara" do
@@ -65,6 +80,14 @@ module Alerts
       assert_includes keys, "recon_invoice_items_mismatch"
     end
 
+    test "nota com total = Σ itens NÃO dispara conciliação" do
+      p = Partner.create!(external_code: 51_351, name: "P2")
+      inv = Invoice.create!(external_uid: 51_451, negotiation_date: Date.current, total_value: 1_000,
+                            kind: :sale, confirmed: true, partner: p, items_synced_at: Time.current)
+      InvoiceItem.create!(invoice: inv, external_sequence: 1, quantity: 2, net_value: 1_000, gross_value: 1_000)
+      assert_not_includes keys, "recon_invoice_items_mismatch"
+    end
+
     # --- Negócio -------------------------------------------------------------
 
     def active_seller_with_user(code)
@@ -76,6 +99,12 @@ module Alerts
     test "vendedor ativo sem meta no mês → alerta de negócio" do
       sp = active_seller_with_user(51_501)
       assert_includes keys, "seller_no_goal:#{sp.id}"
+    end
+
+    test "meta de margem (sem faturamento) NÃO supre o alerta de meta ausente" do
+      sp = active_seller_with_user(51_551)
+      Goal.create!(salesperson: sp, period: Date.current.beginning_of_month, kind: :margin, amount: 10)
+      assert_includes keys, "seller_no_goal:#{sp.id}" # só revenue conta
     end
 
     test "projeção provável abaixo de 60% da meta → projeção crítica" do
