@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_16_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_16_110001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -31,6 +31,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_16_100001) do
     t.index ["salesperson_id", "occurred_at"], name: "index_activities_on_salesperson_id_and_occurred_at"
     t.index ["salesperson_id"], name: "index_activities_on_salesperson_id"
     t.index ["user_id"], name: "index_activities_on_user_id"
+  end
+
+  create_table "alerts", force: :cascade do |t|
+    t.integer "area", null: false
+    t.datetime "created_at", null: false
+    t.bigint "entity_id"
+    t.string "entity_type"
+    t.datetime "first_detected_at", null: false
+    t.string "key", null: false
+    t.datetime "last_detected_at", null: false
+    t.text "message"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "resolved_at"
+    t.integer "severity", default: 1, null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["area", "severity"], name: "index_alerts_on_area_and_severity"
+    t.index ["key"], name: "index_alerts_open_unique_key", unique: true, where: "(resolved_at IS NULL)"
+    t.index ["resolved_at"], name: "index_alerts_on_resolved_at"
   end
 
   create_table "companies", force: :cascade do |t|
