@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_16_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_16_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -322,6 +322,38 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_16_000001) do
     t.index ["salesperson_id"], name: "index_projections_on_salesperson_id"
   end
 
+  create_table "repurchase_predictions", force: :cascade do |t|
+    t.date "actual_date"
+    t.decimal "actual_value", precision: 15, scale: 2
+    t.bigint "category_external_code"
+    t.string "category_name"
+    t.jsonb "components", default: {}, null: false
+    t.integer "confidence"
+    t.bigint "confirmed_invoice_id"
+    t.datetime "created_at", null: false
+    t.integer "cycles"
+    t.string "engine_version"
+    t.date "expected_date"
+    t.decimal "expected_quantity", precision: 15, scale: 4
+    t.decimal "expected_value", precision: 15, scale: 2
+    t.integer "interval_days"
+    t.date "last_purchase_on"
+    t.integer "level", null: false
+    t.string "method"
+    t.bigint "partner_id", null: false
+    t.bigint "product_id"
+    t.datetime "resolved_at"
+    t.integer "status", default: 0, null: false
+    t.string "target_key", null: false
+    t.datetime "updated_at", null: false
+    t.index ["confirmed_invoice_id"], name: "index_repurchase_predictions_on_confirmed_invoice_id"
+    t.index ["partner_id", "level", "status"], name: "idx_on_partner_id_level_status_851b9d2829"
+    t.index ["partner_id", "target_key"], name: "index_repurchase_open_unique_target", unique: true, where: "(status = 0)"
+    t.index ["partner_id"], name: "index_repurchase_predictions_on_partner_id"
+    t.index ["product_id"], name: "index_repurchase_predictions_on_product_id"
+    t.index ["status", "expected_date"], name: "index_repurchase_predictions_on_status_and_expected_date"
+  end
+
   create_table "salespeople", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
@@ -549,6 +581,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_16_000001) do
   add_foreign_key "pending_orders", "partners"
   add_foreign_key "pending_orders", "salespeople"
   add_foreign_key "projections", "salespeople"
+  add_foreign_key "repurchase_predictions", "invoices", column: "confirmed_invoice_id"
+  add_foreign_key "repurchase_predictions", "partners"
+  add_foreign_key "repurchase_predictions", "products"
   add_foreign_key "sessions", "users"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
