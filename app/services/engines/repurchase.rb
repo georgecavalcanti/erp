@@ -25,7 +25,13 @@ module Engines
     MAX_CONFIDENCE = 95        # estatística nunca é certeza absoluta
     CUSTOMER_MIN_EVENTS = 2    # nível cliente: ≥2 compras (1 intervalo) p/ prever
     ITEM_MIN_EVENTS = 3        # categoria/produto: só o recorrente de fato (≥3 compras)
-    OVERDUE_GRACE = 15         # dias de tolerância antes de marcar `missed`
+    # Tolerância de atraso (≈ um ciclo, entre 15 e 90 dias). Enquanto a previsão
+    # está vencida DENTRO da tolerância é "recompra atrasada" (acionável, aparece na
+    # carteira); ALÉM da tolerância o cliente quebrou a cadência → vira `missed` e
+    # não é regerada (é caso de INATIVIDADE, tratado por Engines::Risk). Isso evita
+    # churn de previsões perpetuamente atrasadas de clientes dormentes.
+    MIN_TOLERANCE = 15
+    MAX_TOLERANCE = 90
     MAX_ITEM_PREDICTIONS = 25  # teto por nível (categoria/produto): foca no recorrente
 
     def initialize(partner, as_of: Date.current)
@@ -162,10 +168,15 @@ module Engines
       return nil if intervals.empty?
 
       median_interval = median(intervals).round
+      expected_date = dates.last + median_interval
+      # Previsão obsoleta (vencida além da tolerância): o cliente quebrou a cadência
+      # — vira sinal de inatividade (Risco), não recompra viva. Não gera.
+      return nil if expected_date + tolerance(median_interval) < @as_of
+
       quantities = events.filter_map { |e| e[:quantity] }
       {
         last_purchase_on: dates.last,
-        expected_date: dates.last + median_interval,
+        expected_date: expected_date,
         expected_value: median(events.map { |e| e[:value] }).round(2),
         expected_quantity: quantities.any? ? median(quantities).round(4) : nil,
         interval_days: median_interval,
@@ -229,9 +240,14 @@ module Engines
 
     def overdue_missed?(pred, as_of)
       return false if pred.expected_date.nil?
-      return false unless pred.expected_date + OVERDUE_GRACE < as_of
+      return false unless pred.expected_date + tolerance(pred.interval_days.to_i) < as_of
 
       !covered_by_open_order?(pred)
+    end
+
+    # Tolerância de atraso proporcional ao ciclo, limitada a [15, 90] dias.
+    def tolerance(interval_days)
+      interval_days.clamp(MIN_TOLERANCE, MAX_TOLERANCE)
     end
 
     def covered_by_open_order?(pred)

@@ -94,6 +94,15 @@ module Engines
       assert_equal 95, pred[:confidence] # regular, muitos ciclos
     end
 
+    test "cliente dormente (vencido além da tolerância) → sem previsão viva" do
+      # cadência de 30 dias, mas a última compra foi há muito: expected + tolerância
+      # já passou → é caso de INATIVIDADE (Risco), não recompra viva.
+      base = Date.new(2025, 6, 1)
+      7.times { |i| sale(@partner, base + (i * 30), 1_000) }
+      # última = 2025-11-28; esperada = 2025-12-28; +30 = 2026-01-27 ≪ AS_OF
+      assert_nil customer_pred
+    end
+
     # --- Regra do pedido aberto ----------------------------------------------
 
     test "não prevê no nível cliente se há pedido aberto (já está no pipeline)" do
@@ -121,7 +130,7 @@ module Engines
 
     test "nível produto: previsão por SKU com quantidade esperada" do
       prod = product_with_category
-      base = Date.new(2025, 12, 1)
+      base = Date.new(2026, 5, 1) # próximo do AS_OF (dentro da tolerância de atraso)
       4.times { |i| item_sale(@partner, base + (i * 20), prod, net: 300, qty: 10) }
       pred = Engines::Repurchase.new(@partner, as_of: AS_OF).call.find { |p| p[:level] == :product }
 
@@ -134,7 +143,7 @@ module Engines
     test "nível categoria: agrega os produtos do grupo" do
       p1 = product_with_category(code: 9_009, name: "Grupo 9", desc: "A")
       p2 = product_with_category(code: 9_009, name: "Grupo 9", desc: "B")
-      base = Date.new(2025, 12, 1)
+      base = Date.new(2026, 4, 1) # próximo do AS_OF (dentro da tolerância de atraso)
       # 4 datas; em cada uma um item do grupo 9009 (produtos alternados).
       [ p1, p2, p1, p2 ].each_with_index { |pr, i| item_sale(@partner, base + (i * 25), pr, net: 200, qty: 5) }
       pred = Engines::Repurchase.new(@partner, as_of: AS_OF).call.find { |p| p[:level] == :category && p[:category_external_code] == 9_009 }
@@ -215,7 +224,7 @@ module Engines
       Engines::Repurchase.new(@partner, as_of: AS_OF).persist!
       pred = RepurchasePrediction.status_open.find_by(partner_id: @partner.id, target_key: "customer")
 
-      res = Engines::Repurchase.new(@partner).reconcile!(as_of: pred.expected_date + 5) # < carência (15)
+      res = Engines::Repurchase.new(@partner).reconcile!(as_of: pred.expected_date + 5) # dentro da tolerância (~1 ciclo)
       assert_equal 0, res[:missed]
       assert_predicate pred.reload, :status_open?
     end

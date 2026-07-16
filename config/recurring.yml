@@ -32,3 +32,9 @@ production:
     queue: default
     schedule: "10 0 * * * America/Sao_Paulo" # 00:10 — virada de dia (atualiza dias úteis/ritmo)
     description: "Recalcula projeções do mês por vendedor com meta (append-only)"
+
+  repurchase_forecast:
+    class: RepurchaseForecastJob
+    queue: default
+    schedule: "30 2 * * * America/Sao_Paulo" # 02:30 (madrugada) — recompra do dia, com o histórico já sincronizado
+    description: "Previsão de recompra por parceiro: concilia abertas + grava novas (append-only)"
