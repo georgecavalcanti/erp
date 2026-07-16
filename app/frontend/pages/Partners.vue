@@ -29,6 +29,7 @@ defineProps<{
       :evolution="evolution"
       :filters="filters"
       :filter-options="filterOptions"
+      client-link
     />
   </div>
 </template>

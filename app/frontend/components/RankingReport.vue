@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { Link } from '@inertiajs/vue3'
 import FilterBar from '@/components/FilterBar.vue'
 import KpiCard from '@/components/KpiCard.vue'
 import ChartCard from '@/components/ChartCard.vue'
 import BaseChart from '@/components/BaseChart.vue'
 import InfoHint from '@/components/InfoHint.vue'
 import { brl, brlCompact, num, monthLabel } from '@/lib/format'
+import { matchesQuery } from '@/lib/search'
 import { PALETTE, GRID } from '@/lib/charts'
 import type { Summary, RankingRow, Evolution, AppliedFilters, FilterOptions } from '@/types/models'
 
@@ -16,9 +18,15 @@ const props = defineProps<{
   evolution: Evolution
   filters: AppliedFilters
   filterOptions: FilterOptions
+  // Quando true, o nome linka para o Cliente 360 (só faz sentido em Parceiros).
+  clientLink?: boolean
 }>()
 
 const maxNet = computed(() => Math.max(1, ...props.ranking.map((r) => r.net)))
+
+// Filtro instantâneo da tabela de detalhamento (não mexe nos gráficos/KPIs).
+const query = ref('')
+const filteredRanking = computed(() => props.ranking.filter((r) => matchesQuery(r.name, query.value)))
 
 const evolutionOption = computed(() => ({
   color: PALETTE,
@@ -112,7 +120,7 @@ const rankingBarOption = computed(() => {
     </div>
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <header class="border-b border-slate-200 px-5 py-3">
+      <header class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
         <h3 class="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
           Detalhamento por {{ entity.toLowerCase() }}
           <InfoHint
@@ -120,6 +128,19 @@ const rankingBarOption = computed(() => {
             scope="all"
           />
         </h3>
+        <div class="relative">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
+               class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
+          </svg>
+          <input
+            v-model="query"
+            type="search"
+            :placeholder="`Buscar ${entity.toLowerCase()}…`"
+            :aria-label="`Buscar ${entity.toLowerCase()} na lista`"
+            class="w-56 rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          />
+        </div>
       </header>
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
@@ -134,8 +155,11 @@ const rankingBarOption = computed(() => {
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            <tr v-for="row in ranking" :key="row.id" class="hover:bg-slate-50">
-              <td class="px-5 py-3 font-medium text-slate-700">{{ row.name }}</td>
+            <tr v-for="row in filteredRanking" :key="row.id" class="hover:bg-slate-50">
+              <td class="px-5 py-3 font-medium text-slate-700">
+                <Link v-if="clientLink" :href="`/clientes/${row.id}`" class="text-indigo-600 hover:underline">{{ row.name }}</Link>
+                <span v-else>{{ row.name }}</span>
+              </td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-500">{{ num(row.count) }}</td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-500">{{ brl(row.sales) }}</td>
               <td class="px-5 py-3 text-right tabular-nums" :class="row.returns > 0 ? 'text-red-600' : 'text-slate-400'">
@@ -151,8 +175,10 @@ const rankingBarOption = computed(() => {
                 </div>
               </td>
             </tr>
-            <tr v-if="ranking.length === 0">
-              <td colspan="6" class="px-5 py-10 text-center text-slate-400">Nenhum dado no período selecionado.</td>
+            <tr v-if="filteredRanking.length === 0">
+              <td colspan="6" class="px-5 py-10 text-center text-slate-400">
+                {{ ranking.length === 0 ? 'Nenhum dado no período selecionado.' : `Nenhum ${entity.toLowerCase()} encontrado para “${query}”.` }}
+              </td>
             </tr>
           </tbody>
         </table>
