@@ -3,8 +3,8 @@ module Sankhya
   # não histórico: substitui o conjunto inteiro de forma atômica (delete + insert),
   # como o PendingOrderSync. Colunas: ESTOQUE (físico), RESERVADO, WMSBLOQUEADO.
   #
-  # Guard de janela vazia: se a API não trouxe linha, NÃO zera o snapshot (evita
-  # sumir com o estoque por uma falha) — mantém o último e sinaliza.
+  # Guard de janela vazia: se NENHUM produto foi gravado (API sem linha OU base de
+  # produtos dessincronizada), NÃO zera o snapshot — mantém o último e sinaliza.
   #
   #   Sankhya::StockSync.new.call
   class StockSync
@@ -35,7 +35,11 @@ module Sankhya
 
       result = { rows: rows.size, stored: records.size, missing_product: rows.size - records.size,
                  sample: dry_run ? records.first(5) : [] }
-      return result.merge(skipped: :empty_window) if !dry_run && rows.empty? # não zera por falha
+      # Guard em RECORDS (não em rows): se a API trouxe linhas mas NENHUM CODPROD
+      # casa com Product (base de produtos vazia/dessincronizada), records fica
+      # vazio e o delete_all zeraria o snapshot inteiro — exatamente a falha que o
+      # guard deve evitar. records vazio => janela inválida, preserva o último.
+      return result.merge(skipped: :empty_window) if !dry_run && records.empty?
       return result if dry_run
 
       StockLevel.transaction do

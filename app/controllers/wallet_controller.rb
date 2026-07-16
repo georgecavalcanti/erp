@@ -8,6 +8,9 @@ class WalletController < ApplicationController
   def index
     partner_ids = access.authorized_partner_ids # nil = irrestrito
     base = partner_ids.nil? ? Partner.where(id: Wallet.active.select(:partner_id)) : Partner.where(id: partner_ids)
+    # Só as colunas usadas: evita materializar a coluna `raw` (jsonb pesado) de
+    # milhares de parceiros no caso gestor/admin (irrestrito).
+    base = base.select(:id, :name, :city, :state, :blocked)
     q = params[:q].to_s.strip
     base = base.where("partners.name ILIKE ?", "%#{q}%") if q.present?
 

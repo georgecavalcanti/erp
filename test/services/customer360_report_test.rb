@@ -93,4 +93,34 @@ class Customer360ReportTest < ActiveSupport::TestCase
 
     assert_in_delta 90, papel[:available], 0.001 # 100 − 10
   end
+
+  # Regressão (review): mês só com devolução (sem venda) tem net NEGATIVo, não 0.
+  test "evolução mensal conta devolução em mês sem venda" do
+    Invoice.create!(external_uid: 7410, negotiation_date: Date.new(2026, 5, 20), total_value: 300,
+                    kind: :return, salesperson: @sp, partner: @partner, margin_value: 90)
+    maio = @report.monthly_evolution.find { |e| e[:month] == "2026-05" }
+
+    assert_in_delta(-300, maio[:net], 0.01)
+    assert_in_delta(-90, maio[:margin], 0.01)
+  end
+
+  # Regressão (review): mix e top_products descontam itens de devolução.
+  test "mix por categoria desconta devoluções (líquido)" do
+    ret = Invoice.create!(external_uid: 7411, negotiation_date: Date.new(2026, 7, 9), total_value: 200,
+                          kind: :return, salesperson: @sp, partner: @partner)
+    ret.invoice_items.create!(external_sequence: 1, product: @pa, quantity: 1, gross_value: 200, net_value: 200)
+    papeis = @report.mix_by_category.find { |m| m[:category] == "PAPEIS" }
+
+    assert_in_delta 900, papeis[:revenue], 0.01 # 1100 venda − 200 devolução
+  end
+
+  # Regressão (review): fdiv não trunca a média de intervalo.
+  test "avg_interval_days arredonda (fdiv), não trunca" do
+    other = Partner.create!(external_code: 7299, name: "C INTERVALO")
+    [ Date.new(2026, 7, 1), Date.new(2026, 7, 2), Date.new(2026, 7, 4) ].each_with_index do |d, i|
+      Invoice.create!(external_uid: 7600 + i, negotiation_date: d, total_value: 10, kind: :sale, salesperson: @sp, partner: other)
+    end
+    # 3 dias / 2 intervalos = 1,5 -> round = 2 (antes truncava 3/2 = 1)
+    assert_equal 2, Customer360Report.new(other, as_of: AS_OF).summary[:avg_interval_days]
+  end
 end

@@ -45,6 +45,16 @@ module Sankhya
       assert_equal 1, StockLevel.count # preservado
     end
 
+    # Regressão (review): linhas presentes mas NENHUM CODPROD casado -> records
+    # vazio -> guard deve impedir o delete_all de zerar o snapshot.
+    test "linhas sem produto casado NÃO zera o snapshot" do
+      StockSync.new(client: fake([ { "CODPROD" => 161, "ESTOQUE" => 100, "RESERVADO" => 0, "WMSBLOQUEADO" => 0 } ])).call
+      r = StockSync.new(client: fake([ { "CODPROD" => 99_999, "ESTOQUE" => 50, "RESERVADO" => 0, "WMSBLOQUEADO" => 0 } ])).call
+
+      assert_equal :empty_window, r[:skipped]
+      assert_equal 1, StockLevel.count # preservado (não zerado)
+    end
+
     test "dry_run não grava e devolve amostra" do
       r = StockSync.new(client: fake([ { "CODPROD" => 161, "ESTOQUE" => 100, "RESERVADO" => 0, "WMSBLOQUEADO" => 0 } ])).call(dry_run: true)
 

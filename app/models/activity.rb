@@ -1,7 +1,9 @@
 # Registro de relacionamento com o cliente (doc 04). Base do histórico no Cliente
 # 360 e, adiante, do motor de risco (sem contato há N dias) e da receita influenciada.
 class Activity < ApplicationRecord
-  belongs_to :user
+  # optional: uma atividade órfã (usuário removido) mantém o registro com autoria
+  # anulada. Toda atividade NOVA sempre tem user (criada com Current.user).
+  belongs_to :user, optional: true
   belongs_to :salesperson, optional: true
   belongs_to :partner
 

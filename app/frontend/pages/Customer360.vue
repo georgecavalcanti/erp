@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { Head, Link, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/layouts/AppLayout.vue'
 import KpiCard from '@/components/KpiCard.vue'
-import { brl } from '@/lib/format'
+import { brl, dateBR } from '@/lib/format'
 
 defineOptions({ layout: AppLayout })
 
@@ -148,7 +148,7 @@ function fmtDateTime(iso: string) {
           <h2 class="mb-3 text-sm font-semibold text-slate-600">Pedidos a faturar</h2>
           <ul v-if="openOrders.length" class="space-y-1 text-sm">
             <li v-for="o in openOrders" :key="o.external_uid" class="flex justify-between">
-              <span class="text-slate-500">#{{ o.external_uid }} · {{ o.negotiation_date }}</span>
+              <span class="text-slate-500">#{{ o.external_uid }} · {{ dateBR(o.negotiation_date) }}</span>
               <span class="tabular-nums text-slate-700">{{ brl(o.total_value) }}</span>
             </li>
           </ul>

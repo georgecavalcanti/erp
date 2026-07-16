@@ -8,7 +8,9 @@ class User < ApplicationRecord
   has_many :subordinates, class_name: "User", foreign_key: :manager_id, dependent: :nullify, inverse_of: :manager
   has_many :created_wallets, class_name: "Wallet", foreign_key: :created_by_id, dependent: :nullify, inverse_of: :created_by
   has_many :created_goals, class_name: "Goal", foreign_key: :created_by_id, dependent: :nullify, inverse_of: :created_by
-  has_many :activities, dependent: :destroy
+  # Atividade é histórico (risco/receita influenciada): ao remover o usuário,
+  # anula a autoria mas PRESERVA a atividade (não apaga o histórico).
+  has_many :activities, dependent: :nullify
 
   ROLES = { vendedor: 0, representante: 1, coordenador: 2, gestor_comercial: 3, administrador: 4, diretoria: 5 }.freeze
   ROLE_LABELS = {

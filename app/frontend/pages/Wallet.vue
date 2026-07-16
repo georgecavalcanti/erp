@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Pagination from '@/components/Pagination.vue'
-import { brl } from '@/lib/format'
+import { brl, dateBR } from '@/lib/format'
 import type { Pagination as PaginationType } from '@/types/models'
 
 defineOptions({ layout: AppLayout })
@@ -111,7 +111,7 @@ function segMeta(key: string) {
               </span>
             </td>
             <td class="px-4 py-3 text-slate-500">
-              {{ c.last_purchase_on || '—' }}
+              {{ c.last_purchase_on ? dateBR(c.last_purchase_on) : '—' }}
               <span v-if="c.days_since != null" class="text-xs text-slate-400">({{ c.days_since }}d)</span>
             </td>
             <td class="px-4 py-3 text-right tabular-nums text-slate-700">{{ brl(c.revenue_12m) }}</td>

@@ -36,5 +36,24 @@ module Sankhya
       assert_equal "unavailable", r[:source]
       assert_nil r[:sellable]
     end
+
+    # Regressão (review): SUM devolve linha com nulos p/ produto sem estoque no ERP
+    # -> não reporta "live 0", cai no snapshot.
+    test "SUM nulo (produto sem linha no ERP) cai no snapshot" do
+      @product.create_stock_level!(on_hand: 20, reserved: 0, blocked: 0, synced_at: Time.current)
+      client = FakeSankhyaClient.new(rows: [ { "ESTOQUE" => nil, "RESERVADO" => nil, "WMSBLOQUEADO" => nil } ])
+      r = LiveQueries.new(client: client).stock(@product)
+
+      assert_equal "snapshot", r[:source]
+      assert_in_delta 20, r[:sellable], 0.001
+    end
+
+    # Regressão (review): a query ao vivo SOMA lotes (SUM), como o StockSync.
+    test "stock_sql soma os lotes (SUM), não subconta" do
+      sql = LiveQueries.new(client: FakeSankhyaClient.new(rows: [])).send(:stock_sql, 161)
+
+      assert_match(/SUM\(ESTOQUE\)/i, sql)
+      assert_match(/SUM\(RESERVADO\)/i, sql)
+    end
   end
 end

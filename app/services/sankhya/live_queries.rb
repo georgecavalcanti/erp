@@ -15,7 +15,11 @@ module Sankhya
     # => { sellable:, source: "live"|"snapshot"|"unavailable", as_of: }
     def stock(product)
       row = @client.execute_query(stock_sql(product.external_code)).first
-      row ? live_stock(row) : snapshot_stock(product)
+      # SUM sempre devolve UMA linha; ESTOQUE nulo = produto sem linha no ERP →
+      # cai no snapshot em vez de reportar "live 0" enganoso.
+      return snapshot_stock(product) if row.nil? || row["ESTOQUE"].nil?
+
+      live_stock(row)
     rescue Sankhya::Error
       snapshot_stock(product)
     end
@@ -23,8 +27,12 @@ module Sankhya
     private
 
     def stock_sql(codprod)
+      # SUM: um produto pode ter várias linhas em TGFEST no mesmo local (lotes/
+      # localizações/controle); sem somar, .first subcontaria (mesmo motivo do
+      # StockSync). Um CODPROD por consulta -> não precisa de GROUP BY.
       <<~SQL.squish
-        SELECT ESTOQUE, RESERVADO, WMSBLOQUEADO FROM TGFEST
+        SELECT SUM(ESTOQUE) ESTOQUE, SUM(RESERVADO) RESERVADO, SUM(WMSBLOQUEADO) WMSBLOQUEADO
+        FROM TGFEST
         WHERE CODEMP = 1 AND CODLOCAL = 10100 AND CODPROD = #{codprod.to_i}
       SQL
     end
