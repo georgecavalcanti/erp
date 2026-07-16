@@ -38,3 +38,9 @@ production:
     queue: default
     schedule: "30 2 * * * America/Sao_Paulo" # 02:30 (madrugada) — recompra do dia, com o histórico já sincronizado
     description: "Previsão de recompra por parceiro: concilia abertas + grava novas (append-only)"
+
+  alerts_scan:
+    class: AlertsScanJob
+    queue: default
+    schedule: "20 8-19 * * * America/Sao_Paulo" # a cada hora no horário comercial — reavalia integração/dados/conciliação/negócio
+    description: "Varredura de alertas operacionais (sync atrasado/falho, cadastro, conciliação, meta)"
