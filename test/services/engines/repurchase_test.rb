@@ -269,6 +269,21 @@ module Engines
       assert_equal base + 90 + 45, fresh.expected_date  # D135, corrigido
     end
 
+    test "reconcile!: pedido aberto que passa a cobrir o alvo supera a previsão" do
+      base = Date.new(2025, 12, 8)
+      7.times { |i| sale(@partner, base + (i * 30), 1_000) }
+      Engines::Repurchase.new(@partner, as_of: AS_OF).persist!
+      pred = RepurchasePrediction.status_open.find_by(partner_id: @partner.id, target_key: "customer")
+      assert pred
+
+      # Pedido aberto surge DEPOIS da previsão: o cliente já está no pipeline.
+      Order.create!(external_uid: 92_000, total_value: 500, status: :pending, partner: @partner)
+      res = Engines::Repurchase.new(@partner).reconcile!(as_of: AS_OF)
+
+      assert_equal 1, res[:superseded]
+      assert_predicate pred.reload, :status_canceled? # não fica como recompra atrasada
+    end
+
     test "reconcile!: dentro da carência não marca missed" do
       base = Date.new(2025, 12, 8)
       7.times { |i| sale(@partner, base + (i * 30), 1_000) }

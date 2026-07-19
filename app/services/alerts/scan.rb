@@ -129,7 +129,9 @@ module Alerts
       window = Invoice.confirmed_only.where("negotiation_date >= ?", since).where.not(items_synced_at: nil)
       totals = window.pluck(:id, :total_value).to_h
       sums = InvoiceItem.where(invoice_id: window.select(:id)).group(:invoice_id).sum(:net_value)
-      divergent = sums.count { |iid, s| (totals[iid].to_d - s).abs > RECON_TOLERANCE }
+      # Itera as NOTAS (não os itens): uma nota marcada como sincronizada mas SEM
+      # itens (Σ ausente por falha/deleção do sync) diverge do total → conta como 0.
+      divergent = totals.count { |iid, total| (total.to_d - (sums[iid] || 0)).abs > RECON_TOLERANCE }
       return [] if divergent.zero?
 
       [ finding(:reconciliation, :medium, "recon_invoice_items_mismatch", "Divergência nota × itens",

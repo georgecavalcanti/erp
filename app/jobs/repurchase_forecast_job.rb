@@ -19,7 +19,7 @@ class RepurchaseForecastJob < ApplicationJob
         Partner.where(id: Wallet.active.select(:partner_id))
       end
 
-    stats = { partners: 0, confirmed: 0, missed: 0, created: 0 }
+    stats = { partners: 0, confirmed: 0, missed: 0, superseded: 0, created: 0 }
     scope.find_each do |partner|
       engine = Engines::Repurchase.new(partner)
       resolved = engine.reconcile!
@@ -27,13 +27,14 @@ class RepurchaseForecastJob < ApplicationJob
       stats[:partners] += 1
       stats[:confirmed] += resolved[:confirmed]
       stats[:missed] += resolved[:missed]
+      stats[:superseded] += resolved[:superseded]
       stats[:created] += created.size
     rescue StandardError => e
       Rails.logger.error("[RepurchaseForecastJob] parceiro #{partner.id} falhou: #{e.class}: #{e.message}")
     end
     Rails.logger.info(
-      "[RepurchaseForecastJob] #{stats[:partners]} parceiro(s): " \
-      "#{stats[:created]} nova(s), #{stats[:confirmed]} confirmada(s), #{stats[:missed]} perdida(s)."
+      "[RepurchaseForecastJob] #{stats[:partners]} parceiro(s): #{stats[:created]} nova(s), " \
+      "#{stats[:confirmed]} confirmada(s), #{stats[:superseded]} superada(s), #{stats[:missed]} perdida(s)."
     )
     stats
   end

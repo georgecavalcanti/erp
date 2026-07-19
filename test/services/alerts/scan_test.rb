@@ -80,6 +80,14 @@ module Alerts
       assert_includes keys, "recon_invoice_items_mismatch"
     end
 
+    test "nota sincronizada SEM itens (Σ ausente) dispara conciliação" do
+      p = Partner.create!(external_code: 51_371, name: "P3")
+      # items_synced_at preenchido mas nenhum invoice_item (falha/deleção do sync).
+      Invoice.create!(external_uid: 51_471, negotiation_date: Date.current, total_value: 1_000,
+                      kind: :sale, confirmed: true, partner: p, items_synced_at: Time.current)
+      assert_includes keys, "recon_invoice_items_mismatch"
+    end
+
     test "nota com total = Σ itens NÃO dispara conciliação" do
       p = Partner.create!(external_code: 51_351, name: "P2")
       inv = Invoice.create!(external_uid: 51_451, negotiation_date: Date.current, total_value: 1_000,

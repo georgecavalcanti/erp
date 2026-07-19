@@ -67,16 +67,22 @@ module Engines
     end
 
     # Concilia as previsões ABERTAS do parceiro com a realidade (aprendizado):
-    #   compra do alvo após a âncora        → confirmed + confirmed_invoice_id
-    #   venceu (expected+grace) sem compra
-    #   nem pedido aberto cobrindo o alvo   → missed
+    #   compra real do alvo após a âncora     → confirmed + confirmed_invoice_id
+    #   alvo entrou em pedido aberto           → canceled (já está no pipeline)
+    #   venceu sem compra nem pedido aberto    → missed
     def reconcile!(as_of: @as_of)
-      resolved = { confirmed: 0, missed: 0 }
+      resolved = { confirmed: 0, missed: 0, superseded: 0 }
       RepurchasePrediction.status_open.where(partner_id: @partner.id).find_each do |pred|
         if (invoice = confirming_invoice(pred))
           pred.update!(status: :confirmed, confirmed_invoice_id: invoice.id, resolved_at: Time.current,
                        actual_date: invoice.negotiation_date, actual_value: invoice.total_value)
           resolved[:confirmed] += 1
+        elsif covered_by_open_order?(pred)
+          # O alvo passou a estar em pedido aberto DEPOIS da previsão. A geração
+          # suprime esses alvos; aqui limpamos a previsão antiga para ela não seguir
+          # como "recompra atrasada" no 360/risco. Superada, não perdida.
+          pred.update!(status: :canceled, resolved_at: Time.current)
+          resolved[:superseded] += 1
         elsif overdue_missed?(pred, as_of)
           pred.update!(status: :missed, resolved_at: Time.current)
           resolved[:missed] += 1
@@ -247,11 +253,11 @@ module Engines
       end
     end
 
+    # Venceu além da tolerância? (o pedido aberto já foi tratado antes em reconcile!).
     def overdue_missed?(pred, as_of)
       return false if pred.expected_date.nil?
-      return false unless pred.expected_date + tolerance(pred.interval_days.to_i) < as_of
 
-      !covered_by_open_order?(pred)
+      pred.expected_date + tolerance(pred.interval_days.to_i) < as_of
     end
 
     # Tolerância de atraso proporcional ao ciclo, limitada a [15, 90] dias.
