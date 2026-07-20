@@ -17,6 +17,11 @@ Rails.application.routes.draw do
   get  "clientes/:id",   to: "customer360#show",  as: :cliente
   post "atividades",     to: "activities#create", as: :atividades
 
+  # Copiloto Claude (Sprint 8) — agente com ferramentas escopadas pela carteira.
+  # `perguntar` responde em SSE (progresso das ferramentas + resultado final).
+  get  "copiloto",           to: "copilot#index", as: :copilot
+  post "copiloto/perguntar", to: "copilot_streams#create", as: :copilot_ask
+
   # Plano do Dia (Sprint 7) — priorização + recomendações escopadas pela carteira.
   get   "plano-do-dia",          to: "daily_plan#index",         as: :daily_plan
   patch "recomendacoes/:id",     to: "recommendations#update",   as: :recommendation

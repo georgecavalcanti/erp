@@ -60,16 +60,19 @@ const NAV_REST = [
 const nav = computed(() => {
   const u = user.value as { role?: string } | null
   const seller = u?.role === 'vendedor' || u?.role === 'representante'
+  // Copiloto Claude (doc 07): todos os perfis comerciais; diretoria não (somente leitura).
+  const copilot = u?.role === 'diretoria' ? [] : [{ label: 'Copiloto', href: '/copiloto' }]
   if (seller) {
     return [
       { label: 'Cockpit', href: '/cockpit', exact: true },
       { label: 'Plano do dia', href: '/plano-do-dia' },
+      ...copilot,
       { label: 'Minha carteira', href: '/minha-carteira' },
       ...NAV_REST,
     ]
   }
   // Gestão/diretoria também abrem o Plano do Dia (de um vendedor autorizado).
-  return [{ label: 'Visão geral', href: '/', exact: true }, { label: 'Plano do dia', href: '/plano-do-dia' }, ...NAV_REST]
+  return [{ label: 'Visão geral', href: '/', exact: true }, { label: 'Plano do dia', href: '/plano-do-dia' }, ...copilot, ...NAV_REST]
 })
 
 // Navegação de administração por perfil (doc 07): gestor/admin gerem carteiras e
