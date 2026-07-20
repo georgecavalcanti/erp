@@ -63,11 +63,13 @@ const nav = computed(() => {
   if (seller) {
     return [
       { label: 'Cockpit', href: '/cockpit', exact: true },
+      { label: 'Plano do dia', href: '/plano-do-dia' },
       { label: 'Minha carteira', href: '/minha-carteira' },
       ...NAV_REST,
     ]
   }
-  return [{ label: 'Visão geral', href: '/', exact: true }, ...NAV_REST]
+  // Gestão/diretoria também abrem o Plano do Dia (de um vendedor autorizado).
+  return [{ label: 'Visão geral', href: '/', exact: true }, { label: 'Plano do dia', href: '/plano-do-dia' }, ...NAV_REST]
 })
 
 // Navegação de administração por perfil (doc 07): gestor/admin gerem carteiras e
@@ -79,6 +81,7 @@ const adminNav = computed(() => {
   if (u.managesCommercial) {
     items.push({ label: 'Carteiras', href: '/admin/carteiras' })
     items.push({ label: 'Metas', href: '/admin/metas' })
+    items.push({ label: 'Priorização', href: '/admin/priorizacao' })
   }
   if (u.isAdmin) items.push({ label: 'Usuários', href: '/admin/usuarios' })
   return items

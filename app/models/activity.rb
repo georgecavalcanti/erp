@@ -6,6 +6,8 @@ class Activity < ApplicationRecord
   belongs_to :user, optional: true
   belongs_to :salesperson, optional: true
   belongs_to :partner
+  # Atividade de RESULTADO gerada a partir de uma recomendação do Plano do Dia (Sprint 7).
+  belongs_to :recommendation, optional: true
 
   KINDS = { contact: 0, visit: 1, task: 2, note: 3, result: 4 }.freeze
   KIND_LABELS = {

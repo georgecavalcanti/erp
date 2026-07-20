@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_16_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_19_130001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -31,6 +31,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_16_000001) do
     t.index ["salesperson_id", "occurred_at"], name: "index_activities_on_salesperson_id_and_occurred_at"
     t.index ["salesperson_id"], name: "index_activities_on_salesperson_id"
     t.index ["user_id"], name: "index_activities_on_user_id"
+  end
+
+  create_table "alerts", force: :cascade do |t|
+    t.integer "area", null: false
+    t.datetime "created_at", null: false
+    t.bigint "entity_id"
+    t.string "entity_type"
+    t.datetime "first_detected_at", null: false
+    t.string "key", null: false
+    t.datetime "last_detected_at", null: false
+    t.text "message"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "resolved_at"
+    t.integer "severity", default: 1, null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["area", "severity"], name: "index_alerts_on_area_and_severity"
+    t.index ["key"], name: "index_alerts_open_unique_key", unique: true, where: "(resolved_at IS NULL)"
+    t.index ["resolved_at"], name: "index_alerts_on_resolved_at"
   end
 
   create_table "companies", force: :cascade do |t|
@@ -89,6 +108,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_16_000001) do
     t.datetime "updated_at", null: false
     t.bigint "user_id"
     t.index ["user_id"], name: "index_import_batches_on_user_id"
+  end
+
+  create_table "influenced_revenues", force: :cascade do |t|
+    t.decimal "amount", precision: 15, scale: 2
+    t.datetime "created_at", null: false
+    t.bigint "invoice_id"
+    t.integer "linked_by", default: 1, null: false
+    t.bigint "recommendation_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["invoice_id"], name: "index_influenced_revenues_on_invoice_id"
+    t.index ["recommendation_id", "invoice_id"], name: "index_influenced_revenues_on_recommendation_id_and_invoice_id", unique: true
+    t.index ["recommendation_id"], name: "index_influenced_revenues_on_recommendation_id"
   end
 
   create_table "invoice_items", force: :cascade do |t|
@@ -282,6 +313,46 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_16_000001) do
     t.index ["salesperson_id"], name: "index_pending_orders_on_salesperson_id"
   end
 
+  create_table "priorities", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "engine_version"
+    t.string "method"
+    t.bigint "partner_id", null: false
+    t.integer "position"
+    t.decimal "potential_value", precision: 15, scale: 2
+    t.jsonb "reasons", default: [], null: false
+    t.date "reference_date", null: false
+    t.jsonb "restrictions", default: [], null: false
+    t.bigint "salesperson_id", null: false
+    t.decimal "score", precision: 7, scale: 2, default: "0.0", null: false
+    t.jsonb "score_factors", default: {}, null: false
+    t.string "suggested_action"
+    t.datetime "updated_at", null: false
+    t.integer "urgency"
+    t.date "valid_until"
+    t.index ["partner_id", "reference_date"], name: "index_priorities_on_partner_id_and_reference_date"
+    t.index ["partner_id"], name: "index_priorities_on_partner_id"
+    t.index ["salesperson_id", "reference_date", "position"], name: "idx_on_salesperson_id_reference_date_position_6aee9a0ea7"
+    t.index ["salesperson_id"], name: "index_priorities_on_salesperson_id"
+  end
+
+  create_table "priority_settings", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "daily_capacity", default: 12, null: false
+    t.decimal "min_margin_percent", precision: 7, scale: 2
+    t.integer "recent_contact_days", default: 3, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.integer "weight_conversion", default: 20, null: false
+    t.integer "weight_gap", default: 15, null: false
+    t.integer "weight_margin", default: 10, null: false
+    t.integer "weight_revenue", default: 25, null: false
+    t.integer "weight_risk", default: 10, null: false
+    t.integer "weight_strategic", default: 5, null: false
+    t.integer "weight_urgency", default: 15, null: false
+    t.index ["updated_by_id"], name: "index_priority_settings_on_updated_by_id"
+  end
+
   create_table "products", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.string "brand"
@@ -320,6 +391,70 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_16_000001) do
     t.index ["reference_date"], name: "index_projections_on_reference_date"
     t.index ["salesperson_id", "reference_date", "scenario"], name: "idx_on_salesperson_id_reference_date_scenario_f5c1cdd774"
     t.index ["salesperson_id"], name: "index_projections_on_salesperson_id"
+  end
+
+  create_table "recommendations", force: :cascade do |t|
+    t.datetime "acted_at"
+    t.bigint "agent_run_id"
+    t.integer "channel"
+    t.integer "confidence"
+    t.datetime "created_at", null: false
+    t.date "deadline"
+    t.string "diagnosis"
+    t.jsonb "evidences", default: [], null: false
+    t.integer "feedback"
+    t.string "feedback_notes"
+    t.string "next_action"
+    t.bigint "partner_id"
+    t.jsonb "potential_impact", default: {}, null: false
+    t.bigint "priority_id"
+    t.string "recommendation"
+    t.date "reference_date", null: false
+    t.jsonb "restrictions", default: [], null: false
+    t.bigint "salesperson_id", null: false
+    t.integer "status", default: 0, null: false
+    t.jsonb "tools_used", default: [], null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["partner_id", "reference_date"], name: "index_recommendations_on_partner_id_and_reference_date"
+    t.index ["partner_id"], name: "index_recommendations_on_partner_id"
+    t.index ["priority_id"], name: "index_recommendations_on_priority_id"
+    t.index ["salesperson_id", "partner_id", "reference_date"], name: "index_recommendations_unique_per_day", unique: true
+    t.index ["salesperson_id", "reference_date", "status"], name: "idx_on_salesperson_id_reference_date_status_61d8504c36"
+    t.index ["salesperson_id"], name: "index_recommendations_on_salesperson_id"
+    t.index ["user_id"], name: "index_recommendations_on_user_id"
+  end
+
+  create_table "repurchase_predictions", force: :cascade do |t|
+    t.date "actual_date"
+    t.decimal "actual_value", precision: 15, scale: 2
+    t.bigint "category_external_code"
+    t.string "category_name"
+    t.jsonb "components", default: {}, null: false
+    t.integer "confidence"
+    t.bigint "confirmed_invoice_id"
+    t.datetime "created_at", null: false
+    t.integer "cycles"
+    t.string "engine_version"
+    t.date "expected_date"
+    t.decimal "expected_quantity", precision: 15, scale: 4
+    t.decimal "expected_value", precision: 15, scale: 2
+    t.integer "interval_days"
+    t.date "last_purchase_on"
+    t.integer "level", null: false
+    t.string "method"
+    t.bigint "partner_id", null: false
+    t.bigint "product_id"
+    t.datetime "resolved_at"
+    t.integer "status", default: 0, null: false
+    t.string "target_key", null: false
+    t.datetime "updated_at", null: false
+    t.index ["confirmed_invoice_id"], name: "index_repurchase_predictions_on_confirmed_invoice_id"
+    t.index ["partner_id", "level", "status"], name: "idx_on_partner_id_level_status_851b9d2829"
+    t.index ["partner_id", "target_key"], name: "index_repurchase_open_unique_target", unique: true, where: "(status = 0)"
+    t.index ["partner_id"], name: "index_repurchase_predictions_on_partner_id"
+    t.index ["product_id"], name: "index_repurchase_predictions_on_product_id"
+    t.index ["status", "expected_date"], name: "index_repurchase_predictions_on_status_and_expected_date"
   end
 
   create_table "salespeople", force: :cascade do |t|
@@ -530,6 +665,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_16_000001) do
   add_foreign_key "goals", "salespeople"
   add_foreign_key "goals", "users", column: "created_by_id"
   add_foreign_key "import_batches", "users"
+  add_foreign_key "influenced_revenues", "invoices"
+  add_foreign_key "influenced_revenues", "recommendations"
   add_foreign_key "invoice_items", "invoices"
   add_foreign_key "invoice_items", "products"
   add_foreign_key "invoices", "companies"
@@ -548,7 +685,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_16_000001) do
   add_foreign_key "pending_orders", "import_batches"
   add_foreign_key "pending_orders", "partners"
   add_foreign_key "pending_orders", "salespeople"
+  add_foreign_key "priorities", "partners"
+  add_foreign_key "priorities", "salespeople"
+  add_foreign_key "priority_settings", "users", column: "updated_by_id"
   add_foreign_key "projections", "salespeople"
+  add_foreign_key "recommendations", "partners"
+  add_foreign_key "recommendations", "priorities"
+  add_foreign_key "recommendations", "salespeople"
+  add_foreign_key "recommendations", "users"
+  add_foreign_key "repurchase_predictions", "invoices", column: "confirmed_invoice_id"
+  add_foreign_key "repurchase_predictions", "partners"
+  add_foreign_key "repurchase_predictions", "products"
   add_foreign_key "sessions", "users"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

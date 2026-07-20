@@ -68,8 +68,9 @@ class Customer360Test < ActionDispatch::IntegrationTest
 
     assert_inertia_component "Wallet"
     assert_equal [ "CLIENTE A" ], inertia.props[:clients].map { |c| c[:name] }
-    assert_equal 0.0, inertia.props[:clients].first[:days_since] # compra hoje → ativo
-    assert_equal "ativo", inertia.props[:clients].first[:segment]
+    assert_equal 0, inertia.props[:clients].first[:days_since] # compra hoje
+    # 1ª compra hoje + poucas compras → status de risco "novo em ativação" (Sprint 6)
+    assert_equal "novo_em_ativacao", inertia.props[:clients].first[:status]
   end
 
   test "Minha carteira do admin vê clientes de todas as carteiras" do
@@ -79,5 +80,31 @@ class Customer360Test < ActionDispatch::IntegrationTest
     names = inertia.props[:clients].map { |c| c[:name] }
     assert_includes names, "CLIENTE A"
     assert_includes names, "CLIENTE B"
+  end
+
+  # --- Isolamento de recompra/risco (Sprint 6) — critério inegociável ---------
+
+  test "360 do cliente da carteira traz risco e recompra" do
+    RepurchasePrediction.create!(partner: @pa, level: :customer, target_key: "customer", status: :open,
+                                 last_purchase_on: Date.current - 40, expected_date: Date.current - 10,
+                                 interval_days: 30, confidence: 60, method: "t", engine_version: "t")
+    sign_in_as(@vend_a)
+    get cliente_path(@pa)
+
+    assert_equal "novo_em_ativacao", inertia.props[:risk][:status]
+    assert_equal 1, inertia.props[:repurchase].size
+    assert inertia.props[:repurchase].first[:overdue]
+  end
+
+  test "carteira do vendedor A NÃO conta recompra atrasada da carteira de B" do
+    # recompra atrasada existe para o cliente de B, não para o de A
+    RepurchasePrediction.create!(partner: @pb, level: :customer, target_key: "customer", status: :open,
+                                 last_purchase_on: Date.current - 40, expected_date: Date.current - 10,
+                                 interval_days: 30, confidence: 60, method: "t", engine_version: "t")
+    sign_in_as(@vend_a)
+    get wallet_path
+
+    assert_equal [ "CLIENTE A" ], inertia.props[:clients].map { |c| c[:name] }
+    assert_equal 0, inertia.props[:summary][:repurchase_overdue] # não enxerga o sinal de B
   end
 end

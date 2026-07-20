@@ -131,29 +131,29 @@ Executada em duas partes: **2A** (itens+custo+margem, feita) e **2B** (pedidos c
 
 **Escopo PDF**: modelo inicial de recompra; confiança; alertas.
 
-- [ ] `Engines::Repurchase` estágio estatístico (doc 05.2) + tabela `repurchase_predictions`
-- [ ] Job noturno de previsão em lote (madrugada)
-- [ ] Confirmação automática: compra real → `status=confirmed` + `confirmed_invoice_id`; expiração → `missed`
-- [ ] `Engines::Risk` + `Engines::ConsumptionDrop` (doc 05.3) → status da carteira
-- [ ] Status de risco na `Wallet.vue` (chips: saudável/atenção/risco/inativo/recompra atrasada…)
-- [ ] Tabela `alerts` + `Alerts::ScanJob` (integração, dados, conciliação, negócio — doc 09)
-- [ ] Testes: previsão com históricos sintéticos (regular, irregular, sazonal), transições de status
+- [x] `Engines::Repurchase` estágio estatístico (doc 05.2) + tabela `repurchase_predictions` — 3 níveis (cliente/categoria/produto); data esperada = última compra + mediana do intervalo; confiança = fator de ciclos × regularidade (∝ ciclos, ∝ 1/dispersão, teto 95). Não prevê o que já está em pedido aberto. Motor puro (`#call`) + persistência idempotente (`#persist!`) — índice parcial único (1 aberta por alvo)
+- [x] Job noturno de previsão em lote (madrugada) — `RepurchaseForecastJob` (`config/recurring.yml` 02:30, só produção) + rake `repurchase:forecast`; por parceiro com carteira vigente
+- [x] Confirmação automática: compra real → `status=confirmed` + `confirmed_invoice_id`; expiração → `missed` (`#reconcile!`, roda antes do `persist!`). **Guarda de obsolescência**: só gera previsão viva dentro da tolerância (~1 ciclo, 15–90d) — além disso é caso de inatividade, evitando churn de previsões perpetuamente atrasadas
+- [x] `Engines::Risk` + `Engines::ConsumptionDrop` (doc 05.3) → status da carteira — 6 estados (novo em ativação/saudável/em expansão/em atenção/em risco/inativo); sinais de recompra atrasada, inadimplência, queda de consumo, recência, contato; `classify_many` agregado (sem N+1)
+- [x] Status de risco na `Wallet.vue` (chips) + no Cliente 360 (badge + sinais + seção "Recompra prevista" com data/valor/confiança e marca "atrasada")
+- [x] Tabela `alerts` + `Alerts::ScanJob` (integração `sync atrasado/falho` via sync_runs, dados, conciliação nota×itens, negócio meta/projeção — doc 09) — dedup por `key`, resolve o que cessou; recurring de hora em hora + rake `alerts:scan`
+- [x] Testes: previsão com históricos sintéticos (regular, irregular, sazonal, poucos ciclos), transições open→confirmed/missed, classificação de risco, isolamento (A não vê recompra/risco de B) — **+53 testes (133→186), `bin/ci` verde**
 
-**Aceite**: critério MVP 6 (recompra com data, valor e confiança); recompras atrasadas aparecem na carteira.
+**Aceite**: ✅ critério MVP 6 — recompra com data, valor e confiança (validado no dado real: 15.519 previsões / 1.213 parceiros / 3.920 atrasadas). Recompras atrasadas aparecem na carteira (chip "Recompra atrasada" + contador no resumo). Verificado no app real (admin, 4799 clientes com distribuição de status e sinais).
 
 ## Sprint 7 — Priorização, plano diário e registro de resultados
 
 **Escopo PDF**: score; restrições; plano diário; registro de resultados.
 
-- [ ] `Engines::CrossSell` (doc 05.3)
-- [ ] `Engines::Prioritization`: score com pesos configuráveis, restrições, estratégias adaptativas (doc 05.4) + tabela `priorities`
-- [ ] Configuração de pesos e capacidade diária (tela do gestor)
-- [ ] `Engines::GoalSimulator` (heurística de combinação, doc 05.5)
-- [ ] Página `DailyPlan.vue`: ações com motivo/potencial/canal/abordagem + concluir/adiar/descartar/registrar resultado
-- [ ] Migrations `recommendations` (estrutura) + `influenced_revenues`; registrar resultado vincula venda
-- [ ] Testes: score (pesos), aplicação de restrições, estratégia por posição vs. meta, capacidade respeitada
+- [x] `Engines::CrossSell` (doc 05.3) — categorias de clientes semelhantes (mesma UF + porte por faixa de receita; `segment` do ERP é inútil, 99% "<SEM TIPO PARCEIRO>") ausentes no cliente; potencial = MEDIANA do líquido 12m entre os pares
+- [x] `Engines::Prioritization`: score ponderado (7 fatores, pesos em `PrioritySetting`), restrições que rebaixam (bloqueio/inadimplência/pedido aberto/contato recente/margem), estratégias adaptativas por posição vs. meta (doc 05.4) + tabela `priorities`; consome os sinais da Sprint 6; `persist!` grava priorities (todos) + recommendations (top-N pela capacidade)
+- [x] Configuração de pesos e capacidade diária (tela do gestor) — `Admin::PrioritySettings` (singleton, % normalizada, capacidade, limiares)
+- [x] `Engines::GoalSimulator` (heurística gulosa por valor esperado até cobrir o gap, respeitando capacidade; resumo por origem — doc 05.5)
+- [x] Página `DailyPlan.vue`: ações com motivo/potencial/canal + concluir/adiar/descartar/**registrar resultado**; gera o plano sob demanda; seletor de vendedor p/ gestor
+- [x] Migrations `recommendations` (estrutura, `agent_run_id` p/ Sprint 8) + `influenced_revenues`; registrar resultado cria `InfluencedRevenue` + `Activity(result)` e conclui a recomendação
+- [x] Testes: score/pesos, restrições, estratégia por posição vs. meta, capacidade, **isolamento por carteira** (A não age em recomendação de B), simulador, config do gestor — +25 testes
 
-**Aceite**: critérios MVP 7, 8 e 11 (prioridade com motivo/potencial/restrições; plano respeita capacidade; ação e resultado registrados).
+**Aceite**: ✅ critérios MVP 7, 8 e 11 — prioridade com motivo/potencial/restrições; plano respeita a capacidade; ação e resultado registrados. Verificado no app real (Plano do Dia de ALICE.MELO: 12 ações rankeadas com motivos, potencial, conversão e restrições; #1 = cliente em risco com 15 recompras atrasadas). `bin/ci` verde.
 
 ## Sprint 8 — Agente Claude: ferramentas, orquestração e copiloto
 

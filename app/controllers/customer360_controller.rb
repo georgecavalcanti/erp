@@ -12,6 +12,8 @@ class Customer360Controller < ApplicationController
     render inertia: "Customer360", props: {
       identification: report.identification,
       summary: report.summary,
+      risk: report.risk,
+      repurchase: report.repurchase,
       monthly: report.monthly_evolution,
       mix: report.mix_by_category,
       topProducts: report.top_products,

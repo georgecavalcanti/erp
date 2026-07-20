@@ -117,7 +117,34 @@ class Customer360Report
     end
   end
 
+  # Status de risco da carteira + sinais (Sprint 6, doc 05.3).
+  def risk
+    Engines::Risk.new(@partner, as_of: @as_of).call
+  end
+
+  # Previsões de recompra abertas do cliente (Sprint 6, doc 05.2), da mais próxima
+  # de vencer para a mais distante. `overdue` marca a recompra ATRASADA.
+  def repurchase(limit: 12)
+    preds = RepurchasePrediction.status_open.where(partner_id: @partner.id).order(:expected_date).limit(limit).to_a
+    descriptions = Product.where(id: preds.filter_map(&:product_id)).pluck(:id, :description).to_h
+    preds.map do |p|
+      { level: p.level, label: repurchase_label(p, descriptions),
+        expected_date: p.expected_date, overdue: p.expected_date.present? && p.expected_date < @as_of,
+        expected_value: p.expected_value&.to_f, expected_quantity: p.expected_quantity&.to_f,
+        confidence: p.confidence, interval_days: p.interval_days, cycles: p.cycles }
+    end
+  end
+
   private
+
+  # Rótulo humano do alvo da previsão conforme o nível.
+  def repurchase_label(pred, descriptions)
+    case pred.level
+    when "customer" then "Recompra geral"
+    when "category" then pred.category_name.presence || "Categoria #{pred.category_external_code}"
+    when "product"  then descriptions[pred.product_id].presence || "Produto ##{pred.product_id}"
+    end
+  end
 
   def invoices
     Invoice.confirmed_only.where(partner_id: @partner.id)

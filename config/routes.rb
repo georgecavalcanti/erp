@@ -17,11 +17,19 @@ Rails.application.routes.draw do
   get  "clientes/:id",   to: "customer360#show",  as: :cliente
   post "atividades",     to: "activities#create", as: :atividades
 
+  # Plano do Dia (Sprint 7) — priorização + recomendações escopadas pela carteira.
+  get   "plano-do-dia",          to: "daily_plan#index",         as: :daily_plan
+  patch "recomendacoes/:id",     to: "recommendations#update",   as: :recommendation
+  post  "recomendacoes/:id/resultado", to: "recommendations#result", as: :recommendation_result
+
   # Administração (RBAC): usuários (só admin) · carteiras e metas (gestor + admin).
   namespace :admin do
     resources :usuarios,  controller: "users",   except: :show
     resources :carteiras, controller: "wallets",  only: %i[index create destroy]
     resources :metas,     controller: "goals",   only: %i[index create update destroy]
+    # Config do motor de priorização (pesos + capacidade) — singleton.
+    get   "priorizacao", to: "priority_settings#index",  as: :priorizacao
+    patch "priorizacao", to: "priority_settings#update"
   end
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.

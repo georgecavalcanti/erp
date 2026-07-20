@@ -32,3 +32,21 @@ production:
     queue: default
     schedule: "10 0 * * * America/Sao_Paulo" # 00:10 — virada de dia (atualiza dias úteis/ritmo)
     description: "Recalcula projeções do mês por vendedor com meta (append-only)"
+
+  repurchase_forecast:
+    class: RepurchaseForecastJob
+    queue: default
+    schedule: "30 2 * * * America/Sao_Paulo" # 02:30 (madrugada) — recompra do dia, com o histórico já sincronizado
+    description: "Previsão de recompra por parceiro: concilia abertas + grava novas (append-only)"
+
+  alerts_scan:
+    class: AlertsScanJob
+    queue: default
+    schedule: "20 8-19 * * * America/Sao_Paulo" # a cada hora no horário comercial — reavalia integração/dados/conciliação/negócio
+    description: "Varredura de alertas operacionais (sync atrasado/falho, cadastro, conciliação, meta)"
+
+  priority_recalc:
+    class: PriorityRecalcJob
+    queue: default
+    schedule: "0 6 * * * America/Sao_Paulo" # 06:00 — plano do dia, após a recompra (02:30) e a virada
+    description: "Plano do dia por vendedor: priorities + recommendations (snapshot diário)"
