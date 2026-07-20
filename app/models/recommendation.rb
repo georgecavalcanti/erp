@@ -6,6 +6,7 @@ class Recommendation < ApplicationRecord
   belongs_to :salesperson
   belongs_to :partner, optional: true
   belongs_to :priority, optional: true
+  belongs_to :agent_run, optional: true # preenchida quando gerada/enriquecida pelo agente (Sprint 8)
   has_many :influenced_revenues, dependent: :destroy
 
   CHANNELS = { call: 0, whatsapp: 1, visit: 2, email: 3, internal: 4 }.freeze
