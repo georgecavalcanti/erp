@@ -53,7 +53,22 @@ module Agent
             additionalProperties: false
           }
         },
-        dados_ausentes: { type: "array", items: { type: "string" } }
+        dados_ausentes: { type: "array", items: { type: "string" } },
+        # Abordagens para cards JÁ existentes do plano do dia (U6): o id vem da
+        # lista fornecida pela aplicação no prompt — nunca inventado pelo modelo
+        # (a persistência revalida o dono do card).
+        abordagens: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              recommendation_id: { type: "integer" },
+              abordagem: { type: "string" }
+            },
+            required: %w[recommendation_id abordagem],
+            additionalProperties: false
+          }
+        }
       },
       required: %w[resumo recomendacoes],
       additionalProperties: false
@@ -198,6 +213,9 @@ module Agent
 
       data["recomendacoes"] = data["recomendacoes"].filter_map { |r| normalize_recommendation(r) }
       data["dados_ausentes"] = Array(data["dados_ausentes"]).map(&:to_s)
+      data["abordagens"] = Array(data["abordagens"]).select { |a|
+        a.is_a?(Hash) && a["recommendation_id"].present? && a["abordagem"].present?
+      }
       data
     rescue JSON::ParserError
       nil
@@ -234,7 +252,10 @@ module Agent
         output: output
       )
 
-      persist_recommendations(run, output) if status == :ok && output
+      if status == :ok && output
+        persist_recommendations(run, output)
+        persist_approaches(run, output)
+      end
       return degraded(aviso, error_run: run) unless status == :ok
 
       Result.new(status: :ok, resumo: output["resumo"], recomendacoes: output["recomendacoes"],
@@ -264,6 +285,17 @@ module Agent
           tools_used: run.tools_called.map { |t| t[:name] || t["name"] }.uniq,
           status: :pending
         )
+      end
+    end
+
+    # Abordagens escrevem no card EXISTENTE — só de cards do vendedor do
+    # contexto (id fora do escopo é ignorado; o modelo não escolhe escopo).
+    def persist_approaches(run, output)
+      return if @salesperson.nil? || output["abordagens"].blank?
+
+      output["abordagens"].each do |item|
+        Recommendation.where(id: item["recommendation_id"], salesperson_id: @salesperson.id)
+                      .update_all(approach: item["abordagem"], agent_run_id: run.id, updated_at: Time.current)
       end
     end
 

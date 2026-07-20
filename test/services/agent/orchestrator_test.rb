@@ -213,6 +213,32 @@ module Agent
       assert_equal "refused", AgentRun.order(:id).last.status
     end
 
+    # ---- Abordagens do plano do dia (U6) ------------------------------------
+
+    test "abordagens atualizam só cards do vendedor do contexto" do
+      meu_card = Recommendation.create!(salesperson: @sp, partner: @cliente,
+                                        reference_date: Date.current, status: :pending)
+      outro_sp = Salesperson.create!(external_code: 96_002, nickname: "OUTRO.ORQ")
+      card_alheio = Recommendation.create!(salesperson: outro_sp, reference_date: Date.current)
+
+      fake = FakeClaudeClient.new([
+        FakeClaudeClient.final(VALID_OUTPUT.merge(
+          recomendacoes: [],
+          abordagens: [
+            { recommendation_id: meu_card.id, abordagem: "Abra citando a última compra." },
+            { recommendation_id: card_alheio.id, abordagem: "tentativa de escrever fora do escopo" }
+          ]
+        ))
+      ])
+
+      result = orchestrator(fake, kind: :daily_plan).run("gere as abordagens")
+
+      assert_equal :ok, result.status
+      assert_equal "Abra citando a última compra.", meu_card.reload.approach
+      assert_equal result.agent_run.id, meu_card.agent_run_id
+      assert_nil card_alheio.reload.approach, "card de outro vendedor não pode ser tocado"
+    end
+
     # ---- Custos: caching, tiering e contabilidade ---------------------------
 
     test "prompt tem bloco institucional cacheável e tools em ordem estável" do

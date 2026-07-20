@@ -5,6 +5,8 @@ Rails.application.routes.draw do
   # Painéis (Inertia + Vue)
   root "dashboard#index"
   get "cockpit",       to: "cockpit#index",     as: :cockpit
+  # "Resumo do Claude" no Cockpit (Sprint 8) — gera/atualiza o resumo do agente.
+  post "cockpit/resumo", to: "cockpit#resumo",  as: :cockpit_resumo
   get "situacao",      to: "situation#index",   as: :situation
   get "vendedores",    to: "salespeople#index", as: :salespeople
   get "parceiros",     to: "partners#index",    as: :partners
@@ -24,6 +26,8 @@ Rails.application.routes.draw do
 
   # Plano do Dia (Sprint 7) — priorização + recomendações escopadas pela carteira.
   get   "plano-do-dia",          to: "daily_plan#index",         as: :daily_plan
+  # Abordagens dos cards geradas pelo agente Claude (Sprint 8).
+  post  "plano-do-dia/abordagens", to: "daily_plan#abordagens",  as: :daily_plan_abordagens
   patch "recomendacoes/:id",     to: "recommendations#update",   as: :recommendation
   post  "recomendacoes/:id/resultado", to: "recommendations#result", as: :recommendation_result
 

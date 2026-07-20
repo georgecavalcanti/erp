@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { Head } from '@inertiajs/vue3'
+import { computed, ref } from 'vue'
+import { Head, router } from '@inertiajs/vue3'
 import AppLayout from '@/layouts/AppLayout.vue'
 import KpiCard from '@/components/KpiCard.vue'
 import { brl } from '@/lib/format'
@@ -24,7 +24,21 @@ const props = defineProps<{
   salesperson: { id: number; name: string } | null
   month: string
   projection: Projection | null
+  agentEnabled: boolean
+  claudeSummary: { resumo: string; generated_at: string } | null
 }>()
+
+// Resumo do Claude (Sprint 8): geração sob demanda; a última resposta válida
+// fica visível mesmo com a IA fora do ar (MVP 13).
+const generating = ref(false)
+function refreshSummary() {
+  generating.value = true
+  router.post('/cockpit/resumo', {}, { preserveScroll: true, onFinish: () => (generating.value = false) })
+}
+function fmtWhen(iso: string): string {
+  const d = new Date(iso)
+  return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+}
 
 const p = computed(() => props.projection)
 
@@ -75,6 +89,24 @@ const attainmentSub = computed(() => {
     </div>
 
     <template v-else>
+      <!-- Resumo do Claude (Sprint 8) -->
+      <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-sm font-semibold text-slate-600">
+            Resumo do Claude
+            <span v-if="claudeSummary" class="ml-2 text-xs font-normal text-slate-400">gerado às {{ fmtWhen(claudeSummary.generated_at) }}</span>
+          </h2>
+          <button v-if="agentEnabled" :disabled="generating"
+                  class="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  @click="refreshSummary">
+            {{ generating ? 'Gerando…' : claudeSummary ? 'Atualizar' : 'Gerar resumo' }}
+          </button>
+        </div>
+        <p v-if="claudeSummary" class="mt-2 whitespace-pre-wrap text-sm text-slate-700">{{ claudeSummary.resumo }}</p>
+        <p v-else-if="!agentEnabled" class="mt-2 text-sm text-slate-400">IA indisponível — os indicadores abaixo seguem funcionando normalmente.</p>
+        <p v-else class="mt-2 text-sm text-slate-400">Peça um resumo interpretado da sua posição do mês.</p>
+      </div>
+
       <!-- KPIs -->
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Meta do mês" :value="p.target != null ? brl(p.target) : '—'"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Head, Link, router, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { brl } from '@/lib/format'
@@ -22,6 +22,7 @@ interface Rec {
   restrictions: Tag[]
   status: string
   influenced: number
+  approach: string | null
 }
 interface Origin { count: number; expected: number }
 
@@ -32,7 +33,19 @@ const props = defineProps<{
   recommendations: Rec[]
   simulator: { gap: number | null; projected: number; covers_gap: boolean; count: number; by_origin: Record<string, Origin> } | null
   salespeople: { id: number; name: string }[] | null
+  agentEnabled: boolean
 }>()
+
+// Abordagens geradas pelo Claude (Sprint 8): uma execução para os cards
+// pendentes sem abordagem.
+const generatingApproaches = ref(false)
+const missingApproaches = computed(() =>
+  props.recommendations.some((r) => r.status === 'pending' && !r.approach))
+function generateApproaches() {
+  generatingApproaches.value = true
+  router.post('/plano-do-dia/abordagens', { salesperson_id: props.salesperson?.id },
+    { preserveScroll: true, onFinish: () => (generatingApproaches.value = false) })
+}
 
 const RESTR_TONE = 'text-red-700 bg-red-50 ring-red-200'
 const REASON_TONE: Record<string, string> = {
@@ -76,9 +89,16 @@ function submitResult(rec: Rec) {
           <template v-else>Sem carteira vinculada.</template>
         </p>
       </div>
-      <select v-if="salespeople" class="rounded-md border-slate-300 text-sm shadow-sm" :value="salesperson?.id" @change="switchSeller">
-        <option v-for="s in salespeople" :key="s.id" :value="s.id">{{ s.name }}</option>
-      </select>
+      <div class="flex items-center gap-2">
+        <button v-if="agentEnabled && salesperson && missingApproaches" :disabled="generatingApproaches"
+                class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                @click="generateApproaches">
+          {{ generatingApproaches ? 'Gerando abordagens…' : 'Gerar abordagens (Claude)' }}
+        </button>
+        <select v-if="salespeople" class="rounded-md border-slate-300 text-sm shadow-sm" :value="salesperson?.id" @change="switchSeller">
+          <option v-for="s in salespeople" :key="s.id" :value="s.id">{{ s.name }}</option>
+        </select>
+      </div>
     </div>
 
     <!-- Simulador de meta -->
@@ -120,6 +140,10 @@ function submitResult(rec: Rec) {
               <span v-for="r in rec.reasons" :key="r.key" class="rounded px-1.5 py-0.5 text-xs font-medium ring-1" :class="REASON_TONE[r.key] ?? 'text-slate-600 bg-slate-100 ring-slate-200'">{{ r.label }}</span>
               <span v-for="r in rec.restrictions" :key="r.key" class="rounded px-1.5 py-0.5 text-xs font-medium ring-1" :class="RESTR_TONE">⚠ {{ r.label }}</span>
             </div>
+            <!-- Abordagem redigida pelo agente (Sprint 8) -->
+            <p v-if="rec.approach" class="mt-2 rounded-lg bg-indigo-50/60 px-3 py-2 text-sm text-slate-700">
+              <span class="font-medium text-indigo-700">Abordagem:</span> {{ rec.approach }}
+            </p>
           </div>
           <div class="shrink-0 text-right">
             <div class="tabular-nums font-semibold text-slate-800">{{ brl(rec.potential) }}</div>

@@ -5,14 +5,38 @@
 # de vendedor, então um vendedor nunca abre o cockpit de outro. Calcula ao vivo
 # (resiliente sem IA); a persistência append-only fica no ProjectionRecalcJob.
 class CockpitController < ApplicationController
+  # Pergunta fixa do "Resumo do Claude" (Sprint 8): interpretação curta da
+  # posição — os números o agente busca pelas ferramentas.
+  SUMMARY_PROMPT = "Resuma minha posição comercial do mês em até 4 frases curtas: " \
+                   "atingimento vs. esperado até hoje, gap para a meta, o principal risco na carteira " \
+                   "e a ação nº 1 de hoje. Sem cards: responda com recomendacoes: [].".freeze
+
   def index
     salesperson = Current.user.salesperson
+    last = AgentRun.last_valid(user: Current.user, kind: :cockpit_summary)
 
     render inertia: "Cockpit", props: {
       salesperson: salesperson && { id: salesperson.id, name: salesperson.nickname },
       month: I18n.l(Date.current, format: "%m/%Y"),
-      projection: salesperson && serialize(Engines::Projection.new(salesperson).call)
+      projection: salesperson && serialize(Engines::Projection.new(salesperson).call),
+      agentEnabled: Agent::Config.enabled?,
+      claudeSummary: last && { resumo: last.output["resumo"], generated_at: last.created_at.iso8601 }
     }
+  end
+
+  # Gera/atualiza o resumo pelo agente (kind cockpit_summary → Haiku). Falha ou
+  # IA fora do ar degrada com aviso — o cockpit continua funcionando (MVP 13).
+  def resumo
+    salesperson = Current.user.salesperson
+    return redirect_to cockpit_path, alert: "Sem vendedor vinculado ao usuário." unless salesperson
+
+    result = Agent::Orchestrator.new(user: Current.user, salesperson: salesperson, kind: :cockpit_summary)
+                                .run(SUMMARY_PROMPT)
+    if result.degraded
+      redirect_to cockpit_path, alert: result.aviso
+    else
+      redirect_to cockpit_path, notice: "Resumo do Claude atualizado."
+    end
   end
 
   private
