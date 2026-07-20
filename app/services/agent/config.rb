@@ -4,12 +4,12 @@ module Agent
   # A chave da Claude é SEPARADA das credenciais do Sankhya — o agente nunca
   # recebe credencial do ERP.
   #
-  #   ANTHROPIC_API_KEY               # obrigatória para o agente funcionar
-  #   CLAUDE_MODEL_LIGHT              # rotina (default claude-haiku-4-5)
-  #   CLAUDE_MODEL_DEFAULT           # complexo (default claude-sonnet-5)
-  #   AGENT_DAILY_COST_BUDGET_USD     # teto GLOBAL de custo do dia (default US$ 20)
-  #   AGENT_DAILY_COST_PER_SELLER_USD # teto por vendedor/dia (default US$ 1)
-  #   AGENT_DAILY_TOKEN_BUDGET       # backstop absoluto em tokens (default 2M)
+  #   ANTHROPIC_API_KEY                # obrigatória para o agente funcionar
+  #   CLAUDE_MODEL_LIGHT               # rotina (default claude-haiku-4-5)
+  #   CLAUDE_MODEL_DEFAULT            # complexo (default claude-sonnet-5)
+  #   AGENT_MONTHLY_COST_BUDGET_USD    # teto GLOBAL de custo do MÊS (default US$ 20)
+  #   AGENT_DAILY_COST_PER_SELLER_USD  # teto por vendedor/DIA (default US$ 1)
+  #   AGENT_DAILY_TOKEN_BUDGET        # backstop absoluto em tokens/dia (default 2M)
   module Config
     # Runtime decidido no doc 06 (19/07/2026): Haiku 4.5 para rotina, escalando
     # para Sonnet 5 nos casos complexos. Opus fica para desenvolvimento.
@@ -28,11 +28,12 @@ module Agent
     def self.default_model = ENV["CLAUDE_MODEL_DEFAULT"].presence || DEFAULT_MODEL
 
     # Controle PRIMÁRIO de gasto: tetos de custo em US$ (o que o gestor entende).
-    #   * global: o total do dia "contando tudo" (copiloto + resumo + abordagens)
-    #     não passa daqui — excedido, o agente degrada para TODOS até amanhã.
-    #   * por vendedor: um único vendedor não consome o orçamento inteiro.
+    #   * global MENSAL: o total do MÊS "contando tudo" (copiloto + resumo +
+    #     abordagens) não passa daqui — excedido, o agente degrada para TODOS até
+    #     o próximo mês. É o orçamento de fato (US$ 20/mês).
+    #   * por vendedor DIÁRIO: um vendedor não abusa do chat num único dia.
     # Degradação = última resposta válida + aviso (nunca estoura o orçamento).
-    def self.daily_cost_budget_usd = Float(ENV.fetch("AGENT_DAILY_COST_BUDGET_USD", 20.0))
+    def self.monthly_cost_budget_usd = Float(ENV.fetch("AGENT_MONTHLY_COST_BUDGET_USD", 20.0))
     def self.daily_cost_per_seller_usd = Float(ENV.fetch("AGENT_DAILY_COST_PER_SELLER_USD", 1.0))
 
     # Backstop absoluto em tokens (rede de segurança se o custo estiver mal

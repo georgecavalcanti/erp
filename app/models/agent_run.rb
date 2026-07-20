@@ -10,6 +10,7 @@ class AgentRun < ApplicationRecord
   enum :status, { ok: 0, error: 1, refused: 2, invalid_schema: 3 }, prefix: :status
 
   scope :today, -> { where(created_at: Time.current.all_day) }
+  scope :this_month, -> { where(created_at: Time.current.all_month) }
 
   # Última resposta VÁLIDA de um tipo para (usuário, vendedor de contexto) — o
   # que o front exibe com "gerado às HH:MM" quando a IA cai. O recorte por
@@ -20,14 +21,14 @@ class AgentRun < ApplicationRecord
     scope.order(created_at: :desc).first
   end
 
-  # Custo (US$) gasto HOJE — base dos tetos de custo (controle primário). Conta
-  # TODOS os tipos de execução (copiloto + resumo + abordagens). cost_estimate
-  # nil (modelo sem preço na tabela) conta como 0 — o backstop de tokens cobre.
-  def self.cost_spent_today
-    today.sum(:cost_estimate).to_f
+  # Custo (US$) gasto no MÊS corrente — base do teto global (orçamento de fato).
+  # Conta TODOS os tipos (copiloto + resumo + abordagens). cost_estimate nil
+  # (modelo sem preço na tabela) conta como 0 — o backstop de tokens cobre.
+  def self.cost_spent_this_month
+    this_month.sum(:cost_estimate).to_f
   end
 
-  # Custo (US$) gasto HOJE no contexto de UM vendedor — teto por vendedor.
+  # Custo (US$) gasto HOJE no contexto de UM vendedor — teto por vendedor/dia.
   def self.cost_spent_today_for(salesperson_id)
     today.where(salesperson_id: salesperson_id).sum(:cost_estimate).to_f
   end

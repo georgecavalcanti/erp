@@ -364,12 +364,12 @@ module Agent
       usage[:cache_write] += u.respond_to?(:cache_creation_input_tokens) ? u.cache_creation_input_tokens.to_i : 0
     end
 
-    # Qual teto foi atingido (nil = pode rodar). Ordem: custo global ("não passar
-    # de US$ 20 contando tudo") → custo por vendedor (fairness) → backstop de
-    # tokens. A checagem é ANTES da API — a execução que cruza o teto pode
-    # ultrapassá-lo por no máximo o custo de uma resposta (~US$ 0,15).
+    # Qual teto foi atingido (nil = pode rodar). Ordem: custo global do MÊS ("não
+    # passar de US$ 20/mês contando tudo") → custo por vendedor no DIA (evita
+    # abuso) → backstop de tokens. A checagem é ANTES da API — a execução que
+    # cruza o teto pode ultrapassá-lo por no máximo o custo de uma resposta.
     def budget_block
-      return :global_cost if AgentRun.cost_spent_today >= Config.daily_cost_budget_usd
+      return :global_cost if AgentRun.cost_spent_this_month >= Config.monthly_cost_budget_usd
       if @salesperson && AgentRun.cost_spent_today_for(@salesperson.id) >= Config.daily_cost_per_seller_usd
         return :seller_cost
       end
@@ -379,12 +379,13 @@ module Agent
     end
 
     def budget_degraded(reason)
-      cap = format("%.0f", Config.daily_cost_budget_usd)
       case reason
       when :global_cost
-        register_budget_alert(:high, "Teto diário de custo da IA atingido (US$ #{cap})",
-                              "O copiloto foi pausado para todos até amanhã (AGENT_DAILY_COST_BUDGET_USD).")
-        degraded("Teto diário de uso da IA (US$ #{cap}) atingido — o copiloto volta amanhã.")
+        cap = format("%.0f", Config.monthly_cost_budget_usd)
+        register_budget_alert(:high, "Teto MENSAL de custo da IA atingido (US$ #{cap})",
+                              "O copiloto foi pausado para todos até o próximo mês (AGENT_MONTHLY_COST_BUDGET_USD).",
+                              key_suffix: "month:#{Date.current.strftime('%Y-%m')}")
+        degraded("Teto mensal de uso da IA (US$ #{cap}) atingido — o copiloto volta no próximo mês.")
       when :seller_cost
         register_budget_alert(:medium, "#{@salesperson.nickname} atingiu o teto diário do copiloto",
                               "Limite por vendedor (US$ #{Config.daily_cost_per_seller_usd}/dia) atingido.",
@@ -397,12 +398,14 @@ module Agent
       end
     end
 
-    # Alerta (grupo IA, doc 09) ao cruzar 80% de um teto de custo — uma vez/dia.
+    # Alerta (grupo IA, doc 09) ao cruzar 80% de um teto — global mensal (uma
+    # vez/mês) e por vendedor diário (uma vez/dia por vendedor).
     def warn_budget_if_needed
-      global = AgentRun.cost_spent_today
-      if global >= Config.daily_cost_budget_usd * Config.budget_warning_ratio
-        register_budget_alert(:medium, "Orçamento diário de custo em #{(global * 100 / Config.daily_cost_budget_usd).round}%",
-                              "Aproximando do teto global de US$ #{format('%.0f', Config.daily_cost_budget_usd)}/dia.")
+      month = AgentRun.cost_spent_this_month
+      if month >= Config.monthly_cost_budget_usd * Config.budget_warning_ratio
+        register_budget_alert(:medium, "Orçamento mensal de custo em #{(month * 100 / Config.monthly_cost_budget_usd).round}%",
+                              "Aproximando do teto mensal de US$ #{format('%.0f', Config.monthly_cost_budget_usd)}.",
+                              key_suffix: "month_warn:#{Date.current.strftime('%Y-%m')}")
       end
       return unless @salesperson
 

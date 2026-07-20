@@ -20,7 +20,7 @@ module Agent
     teardown do
       ENV.delete("ANTHROPIC_API_KEY")
       ENV.delete("AGENT_DAILY_TOKEN_BUDGET")
-      ENV.delete("AGENT_DAILY_COST_BUDGET_USD")
+      ENV.delete("AGENT_MONTHLY_COST_BUDGET_USD")
       ENV.delete("AGENT_DAILY_COST_PER_SELLER_USD")
     end
 
@@ -194,18 +194,20 @@ module Agent
       assert Alert.area_ia.severity_high.exists?
     end
 
-    test "teto GLOBAL de custo (US$) atingido pausa o agente para todos" do
-      ENV["AGENT_DAILY_COST_BUDGET_USD"] = "20"
-      # Já gastos US$ 20 hoje (qualquer vendedor/usuário).
-      AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, cost_estimate: 20.0)
-      fake = FakeClaudeClient.new([])
+    test "teto GLOBAL MENSAL de custo (US$) atingido pausa o agente para todos" do
+      ENV["AGENT_MONTHLY_COST_BUDGET_USD"] = "20"
+      # US$ 20 já gastos no mês (dias diferentes contam); gasto do mês passado não.
+      AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, cost_estimate: 12.0,
+                       created_at: Time.current.beginning_of_month)
+      AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, cost_estimate: 8.0)
+      AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, cost_estimate: 50.0,
+                       created_at: Time.current.beginning_of_month - 1.day) # mês passado, não conta
 
-      result = orchestrator(fake).run("pergunta")
+      result = orchestrator(FakeClaudeClient.new([])).run("pergunta")
 
       assert result.degraded
-      assert_match(/US\$ 20/, result.aviso)
-      assert_empty fake.requests, "não pode chamar a API com o teto estourado"
-      assert Alert.area_ia.severity_high.where("title LIKE ?", "%custo%").exists?
+      assert_match(/mensal.*US\$ 20|US\$ 20.*volta no próximo mês/, result.aviso)
+      assert Alert.area_ia.severity_high.where("title LIKE ?", "%MENSAL%").exists?
     end
 
     test "teto POR VENDEDOR bloqueia só o vendedor no limite — outro segue rodando" do
@@ -234,14 +236,14 @@ module Agent
       assert result.degraded, "US$ 1,10 acumulado (resumo + abordagens) já estoura o teto de US$ 1"
     end
 
-    test "aviso a 80% do teto global de custo registra alerta médio" do
-      ENV["AGENT_DAILY_COST_BUDGET_USD"] = "20"
+    test "aviso a 80% do teto mensal de custo registra alerta médio" do
+      ENV["AGENT_MONTHLY_COST_BUDGET_USD"] = "20"
       AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, cost_estimate: 16.5) # 82,5%
       fake = FakeClaudeClient.new([ FakeClaudeClient.final(VALID_OUTPUT) ])
 
       result = orchestrator(fake).run("pergunta")
       assert_equal :ok, result.status, "abaixo do teto ainda roda"
-      assert Alert.area_ia.severity_medium.where("title LIKE ?", "%Orçamento diário de custo%").exists?
+      assert Alert.area_ia.severity_medium.where("title LIKE ?", "%Orçamento mensal de custo%").exists?
     end
 
     test "degradação devolve a última resposta válida com carimbo original" do

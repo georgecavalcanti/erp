@@ -36,17 +36,19 @@ class AgentRunTest < ActiveSupport::TestCase
     assert_equal 1_500, AgentRun.tokens_spent_today
   end
 
-  test "cost_spent_today soma o custo do dia (global e por vendedor), ignorando ontem" do
+  test "cost_spent_this_month (global) e cost_spent_today_for (por vendedor) somam as janelas certas" do
     sp_a = Salesperson.create!(external_code: 71_001, nickname: "SP.A")
     sp_b = Salesperson.create!(external_code: 71_002, nickname: "SP.B")
+    # Mês/dia correntes (todos entram no global mensal E no dia): 0,30+0,20 (sp_a) + 0,50 (sp_b).
     AgentRun.create!(user: @user, kind: :copilot, status: :ok, salesperson: sp_a, cost_estimate: 0.30)
     AgentRun.create!(user: @user, kind: :cockpit_summary, status: :ok, salesperson: sp_a, cost_estimate: 0.20)
     AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, salesperson: sp_b, cost_estimate: 0.50)
+    # Mês passado: não conta no global mensal (nem no dia).
     AgentRun.create!(user: @user, kind: :copilot, status: :ok, salesperson: sp_a, cost_estimate: 9.0,
-                     created_at: 2.days.ago) # ontem não conta
+                     created_at: Time.current.beginning_of_month - 1.day)
 
-    assert_in_delta 1.00, AgentRun.cost_spent_today, 1e-9        # 0,30 + 0,20 + 0,50
-    assert_in_delta 0.50, AgentRun.cost_spent_today_for(sp_a.id), 1e-9
+    assert_in_delta 1.00, AgentRun.cost_spent_this_month, 1e-9   # 0,30 + 0,20 + 0,50 (mês passado fora)
+    assert_in_delta 0.50, AgentRun.cost_spent_today_for(sp_a.id), 1e-9 # 0,30 + 0,20
     assert_in_delta 0.50, AgentRun.cost_spent_today_for(sp_b.id), 1e-9
   end
 
