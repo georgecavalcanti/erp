@@ -196,12 +196,11 @@ module Agent
 
     test "teto GLOBAL MENSAL de custo (US$) atingido pausa o agente para todos" do
       ENV["AGENT_MONTHLY_COST_BUDGET_USD"] = "20"
-      # US$ 20 já gastos no mês (dias diferentes contam); gasto do mês passado não.
-      AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, cost_estimate: 12.0,
-                       created_at: Time.current.beginning_of_month)
+      # US$ 20 já gastos no mês corrente; gasto do mês passado (BRT) não conta.
+      AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, cost_estimate: 12.0)
       AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, cost_estimate: 8.0)
       AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, cost_estimate: 50.0,
-                       created_at: Time.current.beginning_of_month - 1.day) # mês passado, não conta
+                       created_at: Time.current.in_time_zone(AgentRun::BUSINESS_TZ).beginning_of_month - 2.days)
 
       result = orchestrator(FakeClaudeClient.new([])).run("pergunta")
 
@@ -234,6 +233,27 @@ module Agent
 
       result = orchestrator(FakeClaudeClient.new([])).run("pergunta")
       assert result.degraded, "US$ 1,10 acumulado (resumo + abordagens) já estoura o teto de US$ 1"
+    end
+
+    test "alerta do teto mensal deduplica por MÊS (chave sem a data do dia)" do
+      ENV["AGENT_MONTHLY_COST_BUDGET_USD"] = "0.01"
+      AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, cost_estimate: 1.0)
+
+      2.times { orchestrator(FakeClaudeClient.new([])).run("pergunta") } # execuções distintas
+
+      alerts = Alert.where("key LIKE ?", "agent_budget:month:%")
+      assert_equal 1, alerts.count, "um alerta por mês, não por execução/dia"
+      assert_no_match(/\d{4}-\d{2}-\d{2}/, alerts.first.key, "a chave mensal não pode carregar a data do dia")
+    end
+
+    test "modelo sem preço na tabela usa fallback e CONTA no teto (não fura)" do
+      ENV["CLAUDE_MODEL_LIGHT"] = "claude-modelo-datado-sem-preco"
+      fake = FakeClaudeClient.new([ FakeClaudeClient.final(VALID_OUTPUT, usage: [ 1_000_000, 0, 0, 0 ]) ])
+
+      run = orchestrator(fake).run("Qual minha meta?").agent_run
+      assert_operator run.cost_estimate.to_f, :>, 0, "custo não pode ser nil/0 p/ modelo sem preço — furaria o teto"
+    ensure
+      ENV.delete("CLAUDE_MODEL_LIGHT")
     end
 
     test "aviso a 80% do teto mensal de custo registra alerta médio" do

@@ -59,6 +59,9 @@ class AgentRunTest < ActiveSupport::TestCase
     # 1M in × $1 + 100k out × $5 + 1M cache × $0,10 = 1,0 + 0,5 + 0,1
     assert_in_delta 1.6, cost, 0.000001
 
-    assert_nil Agent::Config.cost_estimate(model: "modelo-desconhecido", input_tokens: 1, output_tokens: 1)
+    # Modelo fora da tabela → fallback conservador (o mais caro), NUNCA nil — senão
+    # o custo somaria 0 e furaria os tetos de custo silenciosamente.
+    fallback = Agent::Config.cost_estimate(model: "modelo-novo-sem-preco", input_tokens: 1_000_000, output_tokens: 0)
+    assert_equal 3.0, fallback # input do fallback = US$ 3/1M (o mais caro do runtime)
   end
 end

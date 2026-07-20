@@ -45,10 +45,19 @@ module Agent
 
     def self.enabled? = api_key.present?
 
-    # US$ estimado de uma execução; modelo desconhecido → nil (não chuta preço).
-    # Cache read ~0,1× do input; cache WRITE 1,25× (TTL 5min).
+    # Preço de FALLBACK para modelo fora da tabela (o mais caro do runtime). Regra
+    # de segurança: nunca devolver nil — custo nil somaria 0 e FURARIA os tetos de
+    # custo silenciosamente (ex.: CLAUDE_MODEL_* apontando para um ID datado não
+    # mapeado). Superestimar engaja o teto na direção segura.
+    FALLBACK_PRICE = { input: 3.00, output: 15.00 }.freeze
+
+    # US$ estimado de uma execução. Cache read ~0,1× do input; cache WRITE 1,25×.
     def self.cost_estimate(model:, input_tokens:, output_tokens:, cache_read_tokens: 0, cache_write_tokens: 0)
-      prices = PRICES[model.to_s] or return nil
+      prices = PRICES[model.to_s]
+      unless prices
+        Rails.logger.warn("[Agent::Config] modelo '#{model}' sem preço na tabela — usando fallback conservador (o teto de custo continua ativo)")
+        prices = FALLBACK_PRICE
+      end
       ((input_tokens * prices[:input] +
         output_tokens * prices[:output] +
         cache_read_tokens * prices[:input] * 0.1 +

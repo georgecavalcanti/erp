@@ -9,8 +9,13 @@ class AgentRun < ApplicationRecord
   enum :kind, { copilot: 0, daily_plan: 1, simulation: 2, batch: 3, cockpit_summary: 4 }, prefix: :kind
   enum :status, { ok: 0, error: 1, refused: 2, invalid_schema: 3 }, prefix: :status
 
-  scope :today, -> { where(created_at: Time.current.all_day) }
-  scope :this_month, -> { where(created_at: Time.current.all_month) }
+  # Fuso de negócio (mesmo de Alerts::Scan) — os tetos "diário"/"mensal" resetam
+  # no dia/mês BRASILEIRO, não no dia UTC. Sem isto, o app roda em UTC e o reset
+  # cairia às 21h locais (um vendedor no limite às 20h50 ganharia orçamento novo).
+  BUSINESS_TZ = "America/Sao_Paulo".freeze
+
+  scope :today, -> { where(created_at: Time.current.in_time_zone(BUSINESS_TZ).all_day) }
+  scope :this_month, -> { where(created_at: Time.current.in_time_zone(BUSINESS_TZ).all_month) }
 
   # Última resposta VÁLIDA de um tipo para (usuário, vendedor de contexto) — o
   # que o front exibe com "gerado às HH:MM" quando a IA cai. O recorte por

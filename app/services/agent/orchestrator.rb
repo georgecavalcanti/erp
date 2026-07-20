@@ -364,10 +364,19 @@ module Agent
       usage[:cache_write] += u.respond_to?(:cache_creation_input_tokens) ? u.cache_creation_input_tokens.to_i : 0
     end
 
+    # Dia de negócio (BRT) para as chaves de alerta — casa com as janelas today/
+    # this_month de AgentRun (que também usam BUSINESS_TZ).
+    def business_day = Time.current.in_time_zone(AgentRun::BUSINESS_TZ).to_date
+
     # Qual teto foi atingido (nil = pode rodar). Ordem: custo global do MÊS ("não
     # passar de US$ 20/mês contando tudo") → custo por vendedor no DIA (evita
-    # abuso) → backstop de tokens. A checagem é ANTES da API — a execução que
-    # cruza o teto pode ultrapassá-lo por no máximo o custo de uma resposta.
+    # abuso) → backstop de tokens.
+    #
+    # SOFT cap: a checagem é ANTES da API e lê só o já persistido, então a
+    # execução que cruza o teto ainda roda — pode ultrapassar por até o custo de
+    # UMA resposta (sob concorrência real, por N respostas simultâneas). Aceito:
+    # o agente só roda em 3 controllers síncronos (sem job/batch paralelo) e o teto
+    # mensal em US$ bounda o total; o overshoot é pequeno para um orçamento mensal.
     def budget_block
       return :global_cost if AgentRun.cost_spent_this_month >= Config.monthly_cost_budget_usd
       if @salesperson && AgentRun.cost_spent_today_for(@salesperson.id) >= Config.daily_cost_per_seller_usd
@@ -384,16 +393,17 @@ module Agent
         cap = format("%.0f", Config.monthly_cost_budget_usd)
         register_budget_alert(:high, "Teto MENSAL de custo da IA atingido (US$ #{cap})",
                               "O copiloto foi pausado para todos até o próximo mês (AGENT_MONTHLY_COST_BUDGET_USD).",
-                              key_suffix: "month:#{Date.current.strftime('%Y-%m')}")
+                              key_suffix: "month:#{business_day.strftime('%Y-%m')}")
         degraded("Teto mensal de uso da IA (US$ #{cap}) atingido — o copiloto volta no próximo mês.")
       when :seller_cost
         register_budget_alert(:medium, "#{@salesperson.nickname} atingiu o teto diário do copiloto",
                               "Limite por vendedor (US$ #{Config.daily_cost_per_seller_usd}/dia) atingido.",
-                              key_suffix: "seller:#{@salesperson.id}")
+                              key_suffix: "seller:#{business_day.iso8601}:#{@salesperson.id}")
         degraded("Seu limite diário do copiloto foi atingido — ele volta amanhã.")
       when :global_tokens
         register_budget_alert(:high, "Teto diário de tokens excedido (backstop)",
-                              "O agente foi pausado até amanhã (AGENT_DAILY_TOKEN_BUDGET).")
+                              "O agente foi pausado até amanhã (AGENT_DAILY_TOKEN_BUDGET).",
+                              key_suffix: "tokens:#{business_day.iso8601}")
         degraded("Teto diário de uso da IA atingido — o copiloto volta amanhã.")
       end
     end
@@ -405,7 +415,7 @@ module Agent
       if month >= Config.monthly_cost_budget_usd * Config.budget_warning_ratio
         register_budget_alert(:medium, "Orçamento mensal de custo em #{(month * 100 / Config.monthly_cost_budget_usd).round}%",
                               "Aproximando do teto mensal de US$ #{format('%.0f', Config.monthly_cost_budget_usd)}.",
-                              key_suffix: "month_warn:#{Date.current.strftime('%Y-%m')}")
+                              key_suffix: "month_warn:#{business_day.strftime('%Y-%m')}")
       end
       return unless @salesperson
 
@@ -414,12 +424,13 @@ module Agent
 
       register_budget_alert(:low, "#{@salesperson.nickname}: copiloto em #{(seller * 100 / Config.daily_cost_per_seller_usd).round}% do limite diário",
                             "Aproximando do teto por vendedor (US$ #{Config.daily_cost_per_seller_usd}/dia).",
-                            key_suffix: "seller_warn:#{@salesperson.id}")
+                            key_suffix: "seller_warn:#{business_day.iso8601}:#{@salesperson.id}")
     end
 
-    def register_budget_alert(severity, title, message, key_suffix: severity)
-      key = "agent_budget:#{Date.current.iso8601}:#{key_suffix}"
-      alert = Alert.open.find_or_initialize_by(key: key)
+    # A chave carrega a JANELA de dedup (mês nos alertas mensais, dia nos diários)
+    # — sem prefixo de data fixo, senão o alerta mensal reabriria a cada dia.
+    def register_budget_alert(severity, title, message, key_suffix:)
+      alert = Alert.open.find_or_initialize_by(key: "agent_budget:#{key_suffix}")
       alert.assign_attributes(area: :ia, severity: severity, title: title, message: message,
                               first_detected_at: alert.first_detected_at || Time.current,
                               last_detected_at: Time.current)
