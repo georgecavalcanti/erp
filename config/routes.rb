@@ -27,6 +27,9 @@ Rails.application.routes.draw do
     resources :usuarios,  controller: "users",   except: :show
     resources :carteiras, controller: "wallets",  only: %i[index create destroy]
     resources :metas,     controller: "goals",   only: %i[index create update destroy]
+    # Config do motor de priorização (pesos + capacidade) — singleton.
+    get   "priorizacao", to: "priority_settings#index",  as: :priorizacao
+    patch "priorizacao", to: "priority_settings#update"
   end
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
