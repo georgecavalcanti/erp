@@ -45,6 +45,21 @@ module Engines
       assert(ranked.first[:reasons].any? { |r| r[:key] == "recompra_atrasada" })
     end
 
+    test "margem líquida negativa não vira fator negativo (piso 0) nem inverte o ranking" do
+      x = partner_in_wallet
+      @uid += 1
+      # venda abaixo do custo → margem líquida -80%
+      Invoice.create!(external_uid: @uid, negotiation_date: AS_OF - 20, total_value: 10_000, kind: :sale,
+                      confirmed: true, partner: x, salesperson: @sp, margin_value: -8_000)
+      overdue_pred(x, value: 8_000, count: 3) # cliente acionável hoje
+      y = partner_in_wallet
+      sale(y, 100) # nada acionável
+
+      by_id = plan.index_by { |it| it[:partner_id] }
+      assert_operator by_id[x.id][:score_factors][:margin][:value], :>=, 0.0 # piso respeitado
+      assert_operator by_id[x.id][:score], :>, by_id[y.id][:score]           # acionável fica acima
+    end
+
     test "restrições são exibidas e rebaixam o score" do
       blocked = partner_in_wallet(blocked: true)
       sale(blocked, 10_000)

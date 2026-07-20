@@ -44,6 +44,23 @@ module Engines
       assert sim[:by_origin].key?("recompra")
     end
 
+    test "não seleciona cliente bloqueado/inadimplente para cobrir o gap" do
+      Goal.create!(salesperson: @sp, period: AS_OF, kind: :revenue, amount: 20_000)
+      sale(wallet_partner, 5_000, date: AS_OF - 3) # realizado 5k → gap 15k
+
+      blocked = Partner.create!(external_code: (@uid += 1), name: "BLOQ", active: true, blocked: true)
+      Wallet.create!(salesperson: @sp, partner: blocked, starts_on: AS_OF - 1.year)
+      sale(blocked, 40_000)
+      overdue_pred(blocked, value: 40_000, conf: 90) # sozinho cobriria o gap — mas está bloqueado
+
+      good = wallet_partner
+      sale(good, 8_000)
+      overdue_pred(good, value: 5_000, conf: 80)
+
+      sim = Engines::GoalSimulator.new(@sp, as_of: AS_OF).call
+      assert_not_includes sim[:selected].map { |o| o[:partner_id] }, blocked.id
+    end
+
     test "sinaliza quando as oportunidades não cobrem o gap" do
       Goal.create!(salesperson: @sp, period: AS_OF, kind: :revenue, amount: 500_000)
       p = wallet_partner

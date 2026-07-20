@@ -13,10 +13,15 @@ module Engines
       @config = config
     end
 
+    # Restrições que IMPEDEM a venda — o simulador não conta esse cliente para
+    # fechar o gap (não adianta "perseguir" quem não pode faturar).
+    HARD_RESTRICTIONS = %w[bloqueio inadimplencia].freeze
+
     def call
       engine = Engines::Prioritization.new(@salesperson, as_of: @as_of, config: @config)
       gap = engine.send(:gap)
-      opportunities = engine.call.map { |it| opportunity(it) }.select { |o| o[:expected].positive? }
+      opportunities = engine.call.map { |it| opportunity(it) }
+                            .select { |o| o[:expected].positive? && !o[:blocked] }
 
       selected = greedy_select(opportunities, gap)
       projected = selected.sum { |o| o[:expected] }.round(2)
@@ -33,9 +38,10 @@ module Engines
     def opportunity(item)
       prob = item.dig(:score_factors, :conversion, :value).to_f
       potential = item[:potential_value].to_f
+      blocked = (item[:restrictions] || []).any? { |r| HARD_RESTRICTIONS.include?(r[:key]) }
       {
         partner_id: item[:partner_id], potential: potential.round(2), probability: prob.round(4),
-        expected: (potential * prob).round(2), origin: origin_of(item), reasons: item[:reasons]
+        expected: (potential * prob).round(2), origin: origin_of(item), reasons: item[:reasons], blocked: blocked
       }
     end
 

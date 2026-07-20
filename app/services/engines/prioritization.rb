@@ -134,7 +134,9 @@ module Engines
         urgency: urgency_factor(pid),
         gap: gap_factor(pid),
         risk: RISK_SCORE[status(pid)] || 0.2,
-        margin: [ (@margin[pid] || 0) / 40.0, 1.0 ].min,
+        # clamp em [0,1]: margem líquida NEGATIVA (venda abaixo do custo) não pode
+        # virar fator negativo — subtrairia do score e inverteria a ordenação.
+        margin: ((@margin[pid] || 0) / 40.0).clamp(0.0, 1.0),
         strategic: normalize(@revenue[pid] || 0, @max_revenue)
       }
       raw.transform_values { |v| { value: v.round(4) } }
