@@ -16,8 +16,15 @@ module Agent
       Tools::ConsultarVendasCliente, Tools::ConsultarPedidosAbertos, Tools::ConsultarEstoque,
       Tools::ConsultarPrecos, Tools::ConsultarCredito, Tools::ConsultarInteracoes
     ].freeze
-    ANALISE = [].freeze # Sprint 8 U3
-    ACAO = [].freeze    # Sprint 8 U3
+    ANALISE = [
+      Tools::CalcularProjecao, Tools::PreverRecompra, Tools::DetectarClientesEmRisco,
+      Tools::DetectarQuedaDeConsumo, Tools::IdentificarCrossSell, Tools::CalcularPotencialCliente,
+      Tools::PriorizarCarteira, Tools::SimularPlanoParaMeta
+    ].freeze
+    ACAO = [
+      Tools::RegistrarContato, Tools::RegistrarVisita, Tools::RegistrarObservacao,
+      Tools::CriarTarefa, Tools::RegistrarResultado, Tools::PrepararMensagem, Tools::PrepararCotacao
+    ].freeze
     TOOL_CLASSES = (CONSULTA + ANALISE + ACAO).freeze
 
     def initialize(user:, salesperson: nil)

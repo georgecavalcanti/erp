@@ -29,11 +29,14 @@ module Agent
       assert_match(/não existe/, result[:error])
     end
 
-    test "definitions expõe as 9 ferramentas de consulta em ordem determinística" do
+    test "definitions expõe as 24 ferramentas dos 3 grupos em ordem determinística" do
       defs = registry.definitions
       assert_equal defs.map { |d| d[:name] }, registry.definitions.map { |d| d[:name] }
       assert_includes defs.map { |d| d[:name] }, "consultar_cliente_360"
-      assert_equal 9, defs.size
+      assert_equal 24, defs.size
+      assert_equal 9, ToolRegistry::CONSULTA.size
+      assert_equal 8, ToolRegistry::ANALISE.size
+      assert_equal 7, ToolRegistry::ACAO.size
       # Nenhum schema expõe parâmetro de escopo — o modelo não escolhe vendedor.
       defs.each do |d|
         assert_not_includes d[:input_schema][:properties].keys.map(&:to_s), "salesperson_id",
