@@ -17,6 +17,11 @@ Rails.application.routes.draw do
   get  "clientes/:id",   to: "customer360#show",  as: :cliente
   post "atividades",     to: "activities#create", as: :atividades
 
+  # Plano do Dia (Sprint 7) — priorização + recomendações escopadas pela carteira.
+  get   "plano-do-dia",          to: "daily_plan#index",         as: :daily_plan
+  patch "recomendacoes/:id",     to: "recommendations#update",   as: :recommendation
+  post  "recomendacoes/:id/resultado", to: "recommendations#result", as: :recommendation_result
+
   # Administração (RBAC): usuários (só admin) · carteiras e metas (gestor + admin).
   namespace :admin do
     resources :usuarios,  controller: "users",   except: :show
