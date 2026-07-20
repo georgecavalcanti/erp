@@ -88,6 +88,24 @@ module Engines
       assert_predicate rec.reload, :status_done? # preservada
     end
 
+    def cfg(capacity)
+      PrioritySetting.new(PrioritySetting::DEFAULTS.merge(daily_capacity: capacity))
+    end
+
+    test "persist!: poda pendentes fora do top-N mas preserva as já tocadas" do
+      5.times { |i| p = partner_in_wallet; sale(p, (i + 1) * 1_000); overdue_pred(p, value: (i + 1) * 1_000) }
+      Engines::Prioritization.new(@sp, as_of: AS_OF, config: cfg(5)).persist!
+      # a recomendação de MENOR prioridade (posição 5), marcada como tocada
+      touched = Recommendation.for_date(AS_OF).where(salesperson: @sp).joins(:priority).order("priorities.position desc").first
+      touched.update!(status: :accepted)
+
+      # capacidade cai para 2 → pendentes fora do top-2 são podadas, a tocada fica
+      Engines::Prioritization.new(@sp, as_of: AS_OF, config: cfg(2)).persist!
+      recs = Recommendation.for_date(AS_OF).where(salesperson: @sp)
+      assert_equal 2, recs.where(status: :pending).count
+      assert recs.exists?(id: touched.id), "recomendação tocada não pode ser podada"
+    end
+
     test "isolamento: só pontua clientes da carteira do próprio vendedor" do
       mine = partner_in_wallet
       sale(mine, 5_000)

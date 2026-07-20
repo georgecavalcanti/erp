@@ -47,13 +47,23 @@ module Engines
       ranked
     end
 
-    # Grava o plano do dia (snapshot): regenera as priorities do vendedor no dia,
-    # RELIGA as recommendations já existentes às novas priorities (preservando o que
-    # o vendedor tocou) e cria as do top-N que faltam. Idempotente por dia.
+    # Grava o plano do dia (snapshot). Idempotente e seguro sob concorrência:
+    #   * advisory lock por (vendedor, dia) serializa regenerações simultâneas;
+    #   * PODA as recomendações PENDENTES que saíram do top-N (o plano não cresce
+    #     além da capacidade nem mantém cliente que caiu da carteira) — preserva as
+    #     que o vendedor já tocou (aceita/adiada/concluída/descartada = histórico);
+    #   * RELIGA as remanescentes às novas priorities e cria as do top-N que faltam.
     def persist!(limit: @config.daily_capacity)
       ranked = call
       top = ranked.first(limit)
+      top_ids = top.map { |it| it[:partner_id] }.to_set
       Priority.transaction do
+        lock_salesperson_day!
+
+        # Poda: pendentes fora do novo top-N não seguem no plano.
+        Recommendation.for_date(@as_of).where(salesperson_id: @salesperson.id, status: :pending)
+                      .where.not(partner_id: top_ids.to_a).delete_all
+
         recs = Recommendation.for_date(@as_of).where(salesperson_id: @salesperson.id).to_a
         Recommendation.where(id: recs.map(&:id)).update_all(priority_id: nil) # solta a FK antes de trocar
         Priority.for_date(@as_of).where(salesperson_id: @salesperson.id).delete_all
@@ -67,6 +77,13 @@ module Engines
            .each { |it| create_recommendation(it, by_partner[it[:partner_id]]) }
       end
       top
+    end
+
+    # Lock de transação por (vendedor, dia): duas regenerações simultâneas do mesmo
+    # plano não se atropelam (auto-liberado no commit/rollback).
+    def lock_salesperson_day!
+      key = (@salesperson.id.to_i << 20) ^ @as_of.strftime("%Y%m%d").to_i
+      ActiveRecord::Base.connection.execute("SELECT pg_advisory_xact_lock(#{key})")
     end
 
     private

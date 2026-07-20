@@ -29,7 +29,18 @@ class RecommendationsController < ApplicationController
   # nota (por NUNOTA, se informada) + valor influenciado + atividade de resultado.
   def result
     amount = params[:amount].to_f
-    invoice = Invoice.find_by(external_uid: params[:invoice_uid]) if params[:invoice_uid].present?
+    return redirect_back_with("Informe um valor influenciado maior que zero.") unless amount.positive?
+    if @recommendation.status_done? && @recommendation.influenced_revenues.exists?
+      return redirect_back_with("Resultado já registrado para esta recomendação.")
+    end
+
+    # A nota tem de ser DO CLIENTE da recomendação — nunca vincula venda de outro
+    # cliente/vendedor (integridade da receita influenciada + RBAC).
+    invoice = nil
+    if params[:invoice_uid].present?
+      invoice = Invoice.find_by(external_uid: params[:invoice_uid], partner_id: @recommendation.partner_id)
+      return redirect_back_with("Nota não encontrada para este cliente.") unless invoice
+    end
 
     Recommendation.transaction do
       @recommendation.influenced_revenues.create!(invoice: invoice, amount: amount, linked_by: :manual)

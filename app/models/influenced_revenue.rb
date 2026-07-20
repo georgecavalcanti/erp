@@ -5,4 +5,6 @@ class InfluencedRevenue < ApplicationRecord
   belongs_to :invoice, optional: true
 
   enum :linked_by, { automatic: 0, manual: 1 }, prefix: :linked_by
+
+  validates :amount, numericality: { greater_than: 0 }
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_19_120004) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_19_130001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -419,6 +419,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_19_120004) do
     t.index ["partner_id", "reference_date"], name: "index_recommendations_on_partner_id_and_reference_date"
     t.index ["partner_id"], name: "index_recommendations_on_partner_id"
     t.index ["priority_id"], name: "index_recommendations_on_priority_id"
+    t.index ["salesperson_id", "partner_id", "reference_date"], name: "index_recommendations_unique_per_day", unique: true
     t.index ["salesperson_id", "reference_date", "status"], name: "idx_on_salesperson_id_reference_date_status_61d8504c36"
     t.index ["salesperson_id"], name: "index_recommendations_on_salesperson_id"
     t.index ["user_id"], name: "index_recommendations_on_user_id"

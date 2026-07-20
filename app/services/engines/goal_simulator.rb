@@ -21,7 +21,7 @@ module Engines
       selected = greedy_select(opportunities, gap)
       projected = selected.sum { |o| o[:expected] }.round(2)
       {
-        gap: gap&.round(2), capacity: @config.daily_capacity,
+        gap: gap&.round(2)&.to_f, capacity: @config.daily_capacity, # to_f: o Vue espera number, não BigDecimal
         projected: projected, covers_gap: gap.nil? || gap <= 0 || projected >= gap,
         count: selected.size, selected: selected, by_origin: group_by_origin(selected)
       }

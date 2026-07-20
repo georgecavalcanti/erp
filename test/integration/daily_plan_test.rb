@@ -53,6 +53,35 @@ class DailyPlanTest < ActionDispatch::IntegrationTest
     assert_equal rec.id, a.recommendation_id
   end
 
+  test "registrar resultado NÃO vincula nota de outro cliente (escopo)" do
+    Engines::Prioritization.new(@sp_a).persist!
+    rec = Recommendation.where(salesperson: @sp_a, partner: @pa).first
+    sign_in_as(@vend_a)
+
+    assert_no_difference "InfluencedRevenue.count" do
+      # 10202 é nota do CLIENTE B — não pode vincular à recomendação do cliente A
+      post recommendation_result_path(rec), params: { amount: "100", invoice_uid: "10202" }
+    end
+    assert_match(/não encontrada para este cliente/i, flash[:alert])
+  end
+
+  test "registrar resultado rejeita valor inválido e não duplica" do
+    Engines::Prioritization.new(@sp_a).persist!
+    rec = Recommendation.where(salesperson: @sp_a, partner: @pa).first
+    sign_in_as(@vend_a)
+
+    assert_no_difference "InfluencedRevenue.count" do
+      post recommendation_result_path(rec), params: { amount: "0", notes: "x" } # valor inválido
+    end
+    # 1º registro válido
+    post recommendation_result_path(rec), params: { amount: "500", notes: "ok" }
+    # 2º registro (double submit) é rejeitado
+    assert_no_difference "InfluencedRevenue.count" do
+      post recommendation_result_path(rec), params: { amount: "500", notes: "de novo" }
+    end
+    assert_equal 1, rec.reload.influenced_revenues.count
+  end
+
   test "vendedor A NÃO age em recomendação de B (isolamento)" do
     Engines::Prioritization.new(@sp_b).persist!
     rec_b = Recommendation.where(salesperson: @sp_b).first
