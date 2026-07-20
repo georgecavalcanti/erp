@@ -80,10 +80,12 @@ module Engines
     end
 
     # Lock de transação por (vendedor, dia): duas regenerações simultâneas do mesmo
-    # plano não se atropelam (auto-liberado no commit/rollback).
+    # plano não se atropelam (auto-liberado no commit/rollback). Bind parametrizado
+    # (não interpola SQL) — a chave é um bigint derivado do vendedor + data.
     def lock_salesperson_day!
       key = (@salesperson.id.to_i << 20) ^ @as_of.strftime("%Y%m%d").to_i
-      ActiveRecord::Base.connection.execute("SELECT pg_advisory_xact_lock(#{key})")
+      bind = ActiveRecord::Relation::QueryAttribute.new("lock_key", key, ActiveRecord::Type::BigInteger.new)
+      ActiveRecord::Base.connection.exec_query("SELECT pg_advisory_xact_lock($1)", "advisory_lock", [ bind ])
     end
 
     private
