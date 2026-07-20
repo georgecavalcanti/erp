@@ -19,7 +19,7 @@ module Agent
 
       def execute(params)
         partner = authorized_partner!(params["partner_id"])
-        months = (params["meses"] || 6).clamp(1, 24)
+        months = int_param(params["meses"], default: 6, range: 1..24)
         report = Customer360Report.new(partner)
 
         {

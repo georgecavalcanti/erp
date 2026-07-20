@@ -18,7 +18,9 @@ class CopilotController < ApplicationController
 
   def index
     sp = resolve_salesperson
-    last = AgentRun.last_valid(user: Current.user, kind: :copilot)
+    # Escopado pelo vendedor de contexto: gestor alternando carteiras não vê a
+    # última resposta de A na tela de B.
+    last = sp && AgentRun.last_valid(user: Current.user, kind: :copilot, salesperson: sp)
 
     render inertia: "Copilot", props: {
       salesperson: sp && { id: sp.id, name: sp.nickname },

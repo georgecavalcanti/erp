@@ -23,9 +23,10 @@ module Agent
         return from_persisted(partner, preds) if preds.any?
 
         live = Engines::Repurchase.new(partner).call
+        products = Product.where(id: live.filter_map { |p| p[:product_id] }).pluck(:id, :description).to_h
         {
           cliente: partner.name, origem: "calculada agora (sem previsão persistida)",
-          previsoes: live.map { |p| live_entry(p) },
+          previsoes: live.map { |p| live_entry(p, products) },
           aviso: live.empty? ? "Histórico insuficiente para prever recompra (mínimo 2 compras)." : nil
         }.compact
       end
@@ -52,9 +53,20 @@ module Agent
         end
       end
 
-      def live_entry(p)
-        { nivel: p[:level], data_esperada: p[:expected_date], valor_esperado: money(p[:expected_value]),
-          confianca: p[:confidence] }
+      # Mesmo shape do caminho persistido (alvo + atraso) — sem isso, previsões
+      # de categoria/produto ficariam indistinguíveis no fallback ao vivo.
+      def live_entry(p, products)
+        {
+          nivel: p[:level],
+          alvo: case p[:level]
+                when :product then products[p[:product_id]] || "produto #{p[:product_id]}"
+                when :category then p[:category_name] || "categoria #{p[:category_external_code]}"
+                else "cliente (compra geral)"
+                end,
+          data_esperada: p[:expected_date], valor_esperado: money(p[:expected_value]),
+          confianca: p[:confidence],
+          atrasada_dias: p[:expected_date] && p[:expected_date] < Date.current ? (Date.current - p[:expected_date]).to_i : 0
+        }
       end
     end
   end

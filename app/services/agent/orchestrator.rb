@@ -19,7 +19,9 @@ module Agent
   class Orchestrator
     MAX_TOOL_ROUNDS = 8     # teto de idas e voltas de ferramenta numa pergunta
     MAX_SCHEMA_RETRIES = 1  # resposta fora do schema → 1 retry, depois invalid_schema
-    MAX_TOKENS = 4096
+    # No Sonnet 5 o adaptive thinking (ligado por padrão) consome DESTE teto —
+    # 4096 truncaria a resposta final com facilidade (revisão cruzada Sprint 8).
+    MAX_TOKENS = 8192
 
     # Formato padrão de recomendação (doc 06) imposto por structured output.
     # (Structured outputs não suportam minimum/maximum — confiança é clampada
@@ -124,6 +126,13 @@ module Agent
           return persist_and_build(status: :refused, output: nil, model:, usage:, tools_called:,
                                    question:, started:, aviso: "A IA recusou esta pergunta.")
         end
+        # Resposta cortada pelo teto de tokens: o JSON veio truncado — retry
+        # seria custo jogado fora (viria truncado de novo). Falha explícita.
+        if response.stop_reason == :max_tokens
+          return persist_and_build(status: :error, output: nil, model:, usage:, tools_called:,
+                                   question:, started:,
+                                   aviso: "A resposta excedeu o limite de tamanho — reformule a pergunta em partes menores.")
+        end
 
         messages << { role: "assistant", content: serialize_content(response.content) }
 
@@ -192,11 +201,17 @@ module Agent
     end
 
     # Reserializa os blocos da resposta para reenviá-los como turno assistant.
+    # Blocos thinking DEVEM voltar intactos (com signature): no Sonnet 5 o
+    # adaptive thinking é ligado por padrão e a API rejeita (400) um turno
+    # assistant com tool_use cujo thinking foi removido — descartá-los quebraria
+    # todo o loop de ferramentas do tier complexo (revisão cruzada Sprint 8).
     def serialize_content(content)
       content.map do |block|
         case block.type
         when :text then { type: "text", text: block.text }
         when :tool_use then { type: "tool_use", id: block.id, name: block.name, input: block.input.to_h }
+        when :thinking then { type: "thinking", thinking: block.thinking, signature: block.signature }
+        when :redacted_thinking then { type: "redacted_thinking", data: block.data }
         end
       end.compact
     end
@@ -238,14 +253,15 @@ module Agent
       latency_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
 
       run = AgentRun.create!(
-        user: @user, kind: @kind, status: status, model: model,
+        user: @user, salesperson: @salesperson, kind: @kind, status: status, model: model,
         prompt_summary: question.to_s.truncate(200),
         tools_called: tools_called,
         input_tokens: usage[:input], output_tokens: usage[:output],
-        cache_read_tokens: usage[:cache_read],
+        cache_read_tokens: usage[:cache_read], cache_write_tokens: usage[:cache_write],
         cost_estimate: Config.cost_estimate(model: model, input_tokens: usage[:input],
                                             output_tokens: usage[:output],
-                                            cache_read_tokens: usage[:cache_read]),
+                                            cache_read_tokens: usage[:cache_read],
+                                            cache_write_tokens: usage[:cache_write]),
         latency_ms: latency_ms,
         error_detail: error_detail || aviso,
         response_digest: output && Digest::SHA256.hexdigest(output.to_json),
@@ -264,15 +280,23 @@ module Agent
     end
 
     # Cada recomendação do output vira um card persistido (doc 06: formato padrão
-    # em recommendations com tools_used + agent_run_id). partner_id fora da
-    # carteira NÃO é gravado (o modelo não escolhe escopo — valida de novo aqui).
+    # em recommendations com tools_used + agent_run_id). O partner_id é validado
+    # contra a CARTEIRA DO VENDEDOR DE CONTEXTO — não contra a política do
+    # usuário: um gestor irrestrito operando o copiloto de A não pode gravar no
+    # plano de A um card com cliente de B (revisão cruzada Sprint 8). Id fora da
+    # carteira (ou alucinado) vira nil — nunca derruba o run.
     def persist_recommendations(run, output)
       return if @salesperson.nil?
 
-      authorized = AccessPolicy.new(@user).authorized_partner_ids
+      wallet_ids = Wallet.active.where(salesperson_id: @salesperson.id).distinct.pluck(:partner_id)
       output["recomendacoes"].each do |rec|
         partner_id = rec["partner_id"]
-        partner_id = nil unless partner_id && (authorized.nil? || authorized.include?(partner_id.to_i))
+        partner_id = nil unless partner_id && wallet_ids.include?(partner_id.to_i)
+
+        # Índice único (vendedor, cliente, dia): se o card determinístico do
+        # cliente já existe no plano, não duplica (o texto segue no resumo).
+        next if partner_id && Recommendation.for_date(Date.current)
+                                            .exists?(salesperson_id: @salesperson.id, partner_id: partner_id)
 
         Recommendation.create!(
           user: @user, salesperson: @salesperson, partner_id: partner_id,
@@ -285,16 +309,23 @@ module Agent
           tools_used: run.tools_called.map { |t| t[:name] || t["name"] }.uniq,
           status: :pending
         )
+      rescue ActiveRecord::RecordNotUnique
+        # Corrida com o job de priorização criando o card do mesmo cliente —
+        # o card determinístico vence; o run não pode falhar por isso.
+        next
       end
     end
 
-    # Abordagens escrevem no card EXISTENTE — só de cards do vendedor do
-    # contexto (id fora do escopo é ignorado; o modelo não escolhe escopo).
+    # Abordagens escrevem no card EXISTENTE — só de cards ABERTOS DE HOJE do
+    # vendedor do contexto (id fora do escopo/data é ignorado; um id alucinado
+    # não pode sobrescrever abordagem de card antigo — revisão cruzada Sprint 8).
     def persist_approaches(run, output)
       return if @salesperson.nil? || output["abordagens"].blank?
 
       output["abordagens"].each do |item|
-        Recommendation.where(id: item["recommendation_id"], salesperson_id: @salesperson.id)
+        Recommendation.for_date(Date.current)
+                      .where(id: item["recommendation_id"], salesperson_id: @salesperson.id,
+                             status: %i[pending accepted])
                       .update_all(approach: item["abordagem"], agent_run_id: run.id, updated_at: Time.current)
       end
     end
@@ -326,6 +357,8 @@ module Agent
       usage[:input] += u.input_tokens.to_i
       usage[:output] += u.output_tokens.to_i
       usage[:cache_read] += u.respond_to?(:cache_read_input_tokens) ? u.cache_read_input_tokens.to_i : 0
+      # Escrita de cache é COBRADA (1,25× do input) — entra no custo e no teto.
+      usage[:cache_write] += u.respond_to?(:cache_creation_input_tokens) ? u.cache_creation_input_tokens.to_i : 0
     end
 
     def budget_exceeded?
@@ -359,9 +392,10 @@ module Agent
     end
 
     # Resposta degradada (doc 06, resiliência): a ÚLTIMA resposta válida do mesmo
-    # tipo, com aviso e o carimbo de quando foi gerada. Sem histórico → só o aviso.
+    # tipo E MESMO VENDEDOR de contexto (gestor alternando carteiras não vê a
+    # resposta de A em B), com aviso e carimbo. Sem histórico → só o aviso.
     def degraded(aviso, error_run: nil)
-      last = AgentRun.last_valid(user: @user, kind: @kind)
+      last = AgentRun.last_valid(user: @user, kind: @kind, salesperson: @salesperson)
       if last
         Result.new(status: :degraded, resumo: last.output["resumo"],
                    recomendacoes: last.output["recomendacoes"] || [],

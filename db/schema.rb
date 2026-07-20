@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_19_140002) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_20_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -35,6 +35,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_19_140002) do
 
   create_table "agent_runs", force: :cascade do |t|
     t.integer "cache_read_tokens", default: 0, null: false
+    t.integer "cache_write_tokens", default: 0, null: false
     t.decimal "cost_estimate", precision: 10, scale: 6
     t.datetime "created_at", null: false
     t.string "error_detail"
@@ -46,11 +47,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_19_140002) do
     t.integer "output_tokens", default: 0, null: false
     t.string "prompt_summary"
     t.string "response_digest"
+    t.bigint "salesperson_id"
     t.integer "status", default: 0, null: false
     t.jsonb "tools_called", default: [], null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["kind", "created_at"], name: "index_agent_runs_on_kind_and_created_at"
+    t.index ["salesperson_id"], name: "index_agent_runs_on_salesperson_id"
     t.index ["user_id", "created_at"], name: "index_agent_runs_on_user_id_and_created_at"
     t.index ["user_id"], name: "index_agent_runs_on_user_id"
   end
@@ -684,6 +687,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_19_140002) do
   add_foreign_key "activities", "partners"
   add_foreign_key "activities", "salespeople"
   add_foreign_key "activities", "users"
+  add_foreign_key "agent_runs", "salespeople"
   add_foreign_key "agent_runs", "users"
   add_foreign_key "delinquencies", "import_batches"
   add_foreign_key "delinquencies", "salespeople"

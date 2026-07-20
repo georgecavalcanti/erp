@@ -61,7 +61,12 @@ module Agent
         @salesperson or raise Invalid, "Nenhum vendedor no contexto — esta consulta exige um vendedor."
       end
 
-      # Cliente autorizado ou Denied. É o MESMO limite das telas (AccessPolicy).
+      # Cliente autorizado ou Denied. DOIS limites, ambos obrigatórios:
+      #   1. o do USUÁRIO (AccessPolicy — mesmo limite das telas);
+      #   2. o da CONVERSA: com vendedor de contexto, só a carteira DELE — um
+      #      gestor no copiloto do vendedor A não conversa sobre cliente de B
+      #      (revisão cruzada Sprint 8: sem isso, o card persistido vazaria
+      #      dado de carteira alheia para o plano do vendedor A).
       def authorized_partner!(partner_id)
         raise Invalid, "Informe partner_id." if partner_id.blank?
 
@@ -70,8 +75,26 @@ module Agent
         unless access.can_view_partner?(partner.id)
           raise Denied, "Cliente fora da sua carteira — acesso negado."
         end
+        if @salesperson && !context_wallet_ids.include?(partner.id)
+          raise Denied, "Cliente fora da carteira do vendedor em contexto — acesso negado."
+        end
 
         partner
+      end
+
+      # Carteira vigente do vendedor de contexto (memoizada por execução).
+      def context_wallet_ids
+        @context_wallet_ids ||= Wallet.active.where(salesperson_id: @salesperson.id).distinct.pluck(:partner_id)
+      end
+
+      # Coerção de parâmetro numérico opcional: o modelo às vezes manda string
+      # ("6") — erro claro e corrigível em vez de NoMethodError genérico.
+      def int_param(value, default:, range:)
+        return default if value.blank?
+
+        Integer(value).clamp(range.min, range.max)
+      rescue ArgumentError, TypeError
+        raise Invalid, "Parâmetro numérico inválido: #{value.inspect}."
       end
 
       # BigDecimal não serializa bem para o modelo — sempre Float com 2 casas.

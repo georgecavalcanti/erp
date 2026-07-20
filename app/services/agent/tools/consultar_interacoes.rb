@@ -19,7 +19,7 @@ module Agent
 
       def execute(params)
         partner = authorized_partner!(params["partner_id"])
-        limit = (params["limite"] || 10).clamp(1, 30)
+        limit = int_param(params["limite"], default: 10, range: 1..30)
         activities = Activity.where(partner: partner).recent_first.limit(limit)
 
         {

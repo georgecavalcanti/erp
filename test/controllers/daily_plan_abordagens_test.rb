@@ -31,6 +31,17 @@ class DailyPlanAbordagensTest < ActionDispatch::IntegrationTest
     assert_match(/IA não configurada/, flash[:alert])
   end
 
+  test "diretoria (somente leitura) não dispara a geração de abordagens" do
+    diretoria = User.create!(email_address: "dir2@x.com", password: "secret123", role: :diretoria)
+    Recommendation.create!(salesperson: @sp, partner: @cliente, reference_date: Date.current, status: :pending)
+    sign_in_as(diretoria)
+    post daily_plan_abordagens_path, params: { salesperson_id: @sp.id }
+
+    assert_redirected_to daily_plan_path
+    assert_match(/somente leitura/, flash[:alert])
+    assert_equal 0, AgentRun.count
+  end
+
   test "sem cards pendentes sem abordagem, avisa que nada há a gerar" do
     Recommendation.create!(salesperson: @sp, partner: @cliente, reference_date: Date.current,
                            status: :pending, approach: "já tem")

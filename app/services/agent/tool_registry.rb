@@ -49,7 +49,9 @@ module Agent
       # Allowlist (doc 09): ferramenta desconhecida = capacidade negada.
       return { ok: false, error: "Ferramenta '#{name}' não existe. Use apenas as ferramentas disponíveis." } unless klass
 
-      data = klass.new(user: @user, salesperson: @salesperson).execute(params.to_h.stringify_keys)
+      # deep_stringify: o input do SDK vem com chaves Symbol também nos hashes
+      # ANINHADOS (ex.: itens de preparar_cotacao) — stringify raso quebraria.
+      data = klass.new(user: @user, salesperson: @salesperson).execute(params.to_h.deep_stringify_keys)
       { ok: true, data: data }
     rescue Tools::BaseTool::Denied => e
       { ok: false, error: e.message }

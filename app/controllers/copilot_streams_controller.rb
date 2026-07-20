@@ -55,7 +55,14 @@ class CopilotStreamsController < ApplicationController
     }
   end
 
+  # Escrita tolerante a desconexão: se o cliente fechou a aba no meio do loop,
+  # os writes seguintes viram no-op — o run COMPLETA e persiste em agent_runs
+  # (tokens gastos não podem escapar do teto/auditoria — revisão cruzada S8).
   def sse(event, data)
+    return if @client_gone
+
     response.stream.write("event: #{event}\ndata: #{JSON.generate(data)}\n\n")
+  rescue ActionController::Live::ClientDisconnected, IOError
+    @client_gone = true
   end
 end

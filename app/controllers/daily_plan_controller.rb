@@ -28,6 +28,12 @@ class DailyPlanController < ApplicationController
   # cards abertos sem abordagem — a aplicação fornece a lista (id + contexto);
   # o agente redige e a persistência revalida o dono de cada card.
   def abordagens
+    # Diretoria é somente leitura (doc 07) — não dispara o agente nem escreve
+    # abordagens (mesmo bloqueio do copiloto; revisão cruzada Sprint 8).
+    if Current.user.role_diretoria?
+      return redirect_to daily_plan_path, alert: "Perfil diretoria é somente leitura."
+    end
+
     sp = resolve_salesperson
     return redirect_to daily_plan_path, alert: "Sem vendedor no escopo." unless sp
 
@@ -103,10 +109,18 @@ class DailyPlanController < ApplicationController
       id: rec.id, partner_id: rec.partner_id, partner: rec.partner&.name,
       position: rec.priority&.position, score: rec.priority&.score&.to_f,
       diagnosis: rec.diagnosis, next_action: rec.next_action, channel: rec.channel,
-      potential: rec.potential_impact["revenue"].to_f, confidence: rec.confidence,
-      reasons: rec.evidences, restrictions: rec.restrictions, status: rec.status,
+      # Cards do agente usam "receita" (schema PT-BR); os determinísticos, "revenue".
+      potential: (rec.potential_impact["revenue"] || rec.potential_impact["receita"]).to_f,
+      confidence: rec.confidence,
+      reasons: tags(rec.evidences), restrictions: tags(rec.restrictions), status: rec.status,
       influenced: rec.influenced_revenues.sum(:amount).to_f,
       approach: rec.approach
     }
+  end
+
+  # Normaliza para o shape {key,label} que a tela espera: cards determinísticos
+  # gravam tags; cards do agente gravam strings (evidências/restrições textuais).
+  def tags(list)
+    Array(list).map { |t| t.is_a?(Hash) ? t : { key: t.to_s, label: t.to_s } }
   end
 end

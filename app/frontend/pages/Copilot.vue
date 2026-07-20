@@ -103,7 +103,10 @@ async function ask(text?: string) {
       body: JSON.stringify({ question: q, history, salesperson_id: props.salesperson?.id }),
     })
     if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
-    await consumeStream(res.body)
+    const gotFinal = await consumeStream(res.body)
+    // Stream fechou sem result/error (ex.: servidor caiu no meio): a pergunta
+    // não pode terminar em silêncio — mostra falha explícita.
+    if (!gotFinal) throw new Error('stream sem resultado')
   } catch {
     turns.value.push({
       role: 'assistant', content: '',
@@ -117,49 +120,65 @@ async function ask(text?: string) {
 }
 
 // Parser SSE sobre fetch (EventSource não faz POST): acumula o buffer e
-// despacha cada bloco "event:/data:" completo.
-async function consumeStream(body: ReadableStream<Uint8Array>) {
+// despacha cada bloco "event:/data:" completo. Devolve se um evento FINAL
+// (result/error) chegou — stream que fecha sem final é falha, não sucesso.
+async function consumeStream(body: ReadableStream<Uint8Array>): Promise<boolean> {
   const reader = body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+  let gotFinal = false
   for (;;) {
     const { done, value } = await reader.read()
     if (done) break
     buffer += decoder.decode(value, { stream: true })
     let idx: number
     while ((idx = buffer.indexOf('\n\n')) >= 0) {
-      dispatch(buffer.slice(0, idx))
+      gotFinal = dispatch(buffer.slice(0, idx)) || gotFinal
       buffer = buffer.slice(idx + 2)
     }
   }
+  return gotFinal
 }
 
-function dispatch(block: string) {
+// Devolve true quando o bloco é um evento final (result/error).
+function dispatch(block: string): boolean {
   const event = /^event: (.+)$/m.exec(block)?.[1]
   const data = /^data: (.+)$/m.exec(block)?.[1]
-  if (!event || !data) return
+  if (!event || !data) return false
   const payload = JSON.parse(data)
 
   if (event === 'status') {
     statusLine.value = payload.type === 'tool'
       ? `${TOOL_LABELS[payload.tool] ?? payload.tool}…`
       : 'Pensando…'
+    return false
   } else if (event === 'result') {
     turns.value.push({ role: 'assistant', content: payload.resumo ?? '', answer: payload as Answer })
+    return true
   } else if (event === 'error') {
     turns.value.push({
       role: 'assistant', content: '',
       answer: { resumo: null, recomendacoes: [], dados_ausentes: [], degraded: true, aviso: payload.message, generated_at: null },
     })
+    return true
   }
+  return false
 }
 
-// Ações dos cards: mesmo endpoint da Sprint 7. Atualiza o status local no sucesso.
-function act(card: Card, event: string, newStatus: string) {
-  router.patch(`/recomendacoes/${card.id}`, { event }, {
-    preserveScroll: true, preserveState: true,
-    onSuccess: () => { card.status = newStatus },
-  })
+// Ações dos cards: mesmo endpoint da Sprint 7, mas via fetch — o router do
+// Inertia seguiria o redirect do controller para o Plano do Dia e DESTRUIRIA a
+// conversa (revisão cruzada Sprint 8). Atualiza o status local no sucesso.
+async function act(card: Card, event: string, newStatus: string) {
+  try {
+    const res = await fetch(`/recomendacoes/${card.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken() },
+      body: JSON.stringify({ event }),
+    })
+    if (res.ok) card.status = newStatus
+  } catch {
+    /* falha de rede: mantém o status atual — o usuário tenta de novo */
+  }
 }
 
 function switchSeller(e: Event) {

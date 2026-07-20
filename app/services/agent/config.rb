@@ -35,11 +35,13 @@ module Agent
     def self.enabled? = api_key.present?
 
     # US$ estimado de uma execução; modelo desconhecido → nil (não chuta preço).
-    def self.cost_estimate(model:, input_tokens:, output_tokens:, cache_read_tokens: 0)
+    # Cache read ~0,1× do input; cache WRITE 1,25× (TTL 5min).
+    def self.cost_estimate(model:, input_tokens:, output_tokens:, cache_read_tokens: 0, cache_write_tokens: 0)
       prices = PRICES[model.to_s] or return nil
       ((input_tokens * prices[:input] +
         output_tokens * prices[:output] +
-        cache_read_tokens * prices[:input] * 0.1) / 1_000_000.0).round(6)
+        cache_read_tokens * prices[:input] * 0.1 +
+        cache_write_tokens * prices[:input] * 1.25) / 1_000_000.0).round(6)
     end
   end
 end

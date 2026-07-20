@@ -55,7 +55,7 @@ class CockpitControllerTest < ActionDispatch::IntegrationTest
   # ---- Resumo do Claude (Sprint 8) ------------------------------------------
 
   test "cockpit expõe a última resposta válida do resumo do Claude" do
-    AgentRun.create!(user: @vend, kind: :cockpit_summary, status: :ok,
+    AgentRun.create!(user: @vend, kind: :cockpit_summary, status: :ok, salesperson: @sp,
                      output: { "resumo" => "Você está 10% abaixo do esperado.", "recomendacoes" => [] })
     sign_in_as(@vend)
     get cockpit_path

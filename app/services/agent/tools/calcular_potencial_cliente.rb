@@ -20,7 +20,12 @@ module Agent
       def execute(params)
         partner = authorized_partner!(params["partner_id"])
 
-        repurchase = RepurchasePrediction.status_open.where(partner: partner).sum(:expected_value).to_f
+        # Recompra em UM nível só: cliente > produto > categoria. Somar os três
+        # contaria a mesma compra esperada 2–3× (o nível cliente já engloba os
+        # itens — revisão cruzada Sprint 8).
+        by_level = RepurchasePrediction.status_open.where(partner: partner)
+                                       .group(:level).sum(:expected_value)
+        repurchase = (by_level["customer"] || by_level["product"] || by_level["category"] || 0).to_f
         cross_sell = Engines::CrossSell.new(partner).call.sum { |o| o[:potential_value] }
         drop = Engines::ConsumptionDrop.new(partner).call
         recovery = drop[:trend] == :drop ? drop[:absolute_lost] : 0.0

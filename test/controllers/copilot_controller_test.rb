@@ -22,7 +22,7 @@ class CopilotControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "última resposta válida aparece para degradação (MVP 13)" do
-    AgentRun.create!(user: @vend, kind: :copilot, status: :ok,
+    AgentRun.create!(user: @vend, kind: :copilot, status: :ok, salesperson: @sp,
                      output: { "resumo" => "Plano de ontem: 3 clientes", "recomendacoes" => [] })
     sign_in_as(@vend)
     get copilot_path

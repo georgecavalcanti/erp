@@ -3,9 +3,10 @@
 # cada `messages.create` consome a próxima — e grava os parâmetros de cada
 # request para inspeção (system_, tools, messages, output_config).
 class FakeClaudeClient
-  Usage = Struct.new(:input_tokens, :output_tokens, :cache_read_input_tokens)
+  Usage = Struct.new(:input_tokens, :output_tokens, :cache_read_input_tokens, :cache_creation_input_tokens)
   TextBlock = Struct.new(:type, :text)
   ToolUseBlock = Struct.new(:type, :id, :name, :input)
+  ThinkingBlock = Struct.new(:type, :thinking, :signature)
   Response = Struct.new(:stop_reason, :content, :usage)
 
   attr_reader :requests
@@ -26,19 +27,21 @@ class FakeClaudeClient
     step.respond_to?(:call) ? step.call(params) : step
   end
 
-  DEFAULT_USAGE = [ 1_000, 200, 0 ].freeze
+  DEFAULT_USAGE = [ 1_000, 200, 0, 0 ].freeze
 
   # Resposta final de texto (o JSON do structured output vem como string).
-  def self.final(payload, usage: DEFAULT_USAGE)
+  def self.final(payload, usage: DEFAULT_USAGE, stop_reason: :end_turn)
     text = payload.is_a?(String) ? payload : JSON.generate(payload)
-    Response.new(:end_turn, [ TextBlock.new(:text, text) ], Usage.new(*usage))
+    Response.new(stop_reason, [ TextBlock.new(:text, text) ], Usage.new(*usage))
   end
 
-  # Resposta pedindo ferramenta(s): [[nome, input], ...]
-  def self.tool_use(*calls, usage: DEFAULT_USAGE)
+  # Resposta pedindo ferramenta(s): [[nome, input], ...]. thinking: simula o
+  # adaptive thinking do Sonnet 5 (bloco que DEVE voltar intacto no reenvio).
+  def self.tool_use(*calls, usage: DEFAULT_USAGE, thinking: nil)
     blocks = calls.each_with_index.map do |(name, input), i|
       ToolUseBlock.new(:tool_use, "toolu_#{i + 1}", name, input || {})
     end
+    blocks.unshift(ThinkingBlock.new(:thinking, thinking, "sig_teste")) if thinking
     Response.new(:tool_use, blocks, Usage.new(*usage))
   end
 

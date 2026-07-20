@@ -21,7 +21,7 @@ module Agent
           meta: money(live[:target]), realizado: money(live[:realized]),
           cenarios: live[:scenarios].map { |name, s|
             { cenario: name, valor: money(s[:value]), gap: money(s[:gap]),
-              confianca: s[:confidence], parcelas: s[:components] }
+              confianca: s[:confidence], parcelas: plain_parcels(s[:components]) }
           }
         }
       end
@@ -36,6 +36,12 @@ module Agent
 
         ::Projection.where(salesperson: sp, reference_date: newest.reference_date)
                     .where(created_at: (newest.created_at - 5.seconds)..newest.created_at)
+      end
+
+      # As parcelas do motor ao vivo carregam BigDecimal — sem converter, o JSON
+      # do tool_result viraria string ("0.123e4") e confundiria o modelo.
+      def plain_parcels(components)
+        components.map { |c| c.transform_values { |v| v.is_a?(BigDecimal) ? v.to_f : v } }
       end
 
       def from_persisted(sp, batch)

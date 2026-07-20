@@ -24,13 +24,18 @@ module Agent
         rec = authorized_recommendation!(params["recommendation_id"])
         amount = params["valor"].to_f
         raise Invalid, "Informe um valor influenciado maior que zero." unless amount.positive?
-        if rec.status_done? && rec.influenced_revenues.exists?
-          raise Invalid, "Resultado já registrado para esta recomendação."
-        end
 
         invoice = find_invoice!(rec, params["nota_uid"])
 
+        # A checagem de duplicidade fica DENTRO da transação, sob lock de linha:
+        # duas chamadas simultâneas não criam duas receitas influenciadas para o
+        # mesmo card (revisão cruzada Sprint 8).
         Recommendation.transaction do
+          rec.lock!
+          if rec.status_done? && rec.influenced_revenues.exists?
+            raise Invalid, "Resultado já registrado para esta recomendação."
+          end
+
           rec.influenced_revenues.create!(invoice: invoice, amount: amount, linked_by: :manual)
           rec.update!(status: :done, feedback: :useful, acted_at: Time.current)
           Activity.create!(
@@ -46,7 +51,8 @@ module Agent
 
       private
 
-      # Mesmo limite do controller: recomendação de vendedor autorizado.
+      # Mesmo limite do controller (vendedor autorizado) + o limite da CONVERSA:
+      # com vendedor de contexto, só recomendações DELE.
       def authorized_recommendation!(id)
         rec = Recommendation.find_by(id: id)
         raise Invalid, "Recomendação #{id} não encontrada." unless rec
@@ -54,6 +60,9 @@ module Agent
         ids = access.authorized_salesperson_ids
         unless ids.nil? || ids.include?(rec.salesperson_id)
           raise Denied, "Recomendação fora do seu escopo."
+        end
+        if @salesperson && rec.salesperson_id != @salesperson.id
+          raise Denied, "Recomendação de outro vendedor — fora do contexto desta conversa."
         end
 
         rec

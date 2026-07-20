@@ -13,7 +13,7 @@ class CockpitController < ApplicationController
 
   def index
     salesperson = Current.user.salesperson
-    last = AgentRun.last_valid(user: Current.user, kind: :cockpit_summary)
+    last = salesperson && AgentRun.last_valid(user: Current.user, kind: :cockpit_summary, salesperson: salesperson)
 
     render inertia: "Cockpit", props: {
       salesperson: salesperson && { id: salesperson.id, name: salesperson.nickname },
@@ -27,6 +27,11 @@ class CockpitController < ApplicationController
   # Gera/atualiza o resumo pelo agente (kind cockpit_summary → Haiku). Falha ou
   # IA fora do ar degrada com aviso — o cockpit continua funcionando (MVP 13).
   def resumo
+    # Diretoria é somente leitura (doc 07) — não dispara execuções do agente.
+    if Current.user.role_diretoria?
+      return redirect_to cockpit_path, alert: "Perfil diretoria é somente leitura."
+    end
+
     salesperson = Current.user.salesperson
     return redirect_to cockpit_path, alert: "Sem vendedor vinculado ao usuário." unless salesperson
 

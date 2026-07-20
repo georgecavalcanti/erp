@@ -3,6 +3,7 @@
 # base da degradação "última resposta válida" quando a IA está indisponível.
 class AgentRun < ApplicationRecord
   belongs_to :user
+  belongs_to :salesperson, optional: true # vendedor de CONTEXTO da execução
   has_many :recommendations, dependent: :nullify
 
   enum :kind, { copilot: 0, daily_plan: 1, simulation: 2, batch: 3, cockpit_summary: 4 }, prefix: :kind
@@ -10,16 +11,20 @@ class AgentRun < ApplicationRecord
 
   scope :today, -> { where(created_at: Time.current.all_day) }
 
-  # Última resposta VÁLIDA de um tipo para o usuário — o que o front exibe com o
-  # aviso "gerado às HH:MM" quando a IA está fora do ar.
-  def self.last_valid(user:, kind:)
-    where(user:, kind:).status_ok.where.not(output: nil).order(created_at: :desc).first
+  # Última resposta VÁLIDA de um tipo para (usuário, vendedor de contexto) — o
+  # que o front exibe com "gerado às HH:MM" quando a IA cai. O recorte por
+  # vendedor evita que um gestor alternando carteiras veja o resumo de A em B.
+  def self.last_valid(user:, kind:, salesperson: nil)
+    scope = where(user:, kind:).status_ok.where.not(output: nil)
+    scope = scope.where(salesperson: salesperson) if salesperson
+    scope.order(created_at: :desc).first
   end
 
   # Tokens consumidos HOJE (todos os usuários) — comparado ao teto diário global
-  # (AGENT_DAILY_TOKEN_BUDGET). Cache read não conta: custa ~0,1× e é justamente
-  # a alavanca de economia que não queremos desincentivar.
+  # (AGENT_DAILY_TOKEN_BUDGET). Escrita de cache conta (é cobrada a 1,25×);
+  # cache READ não conta: custa ~0,1× e é a alavanca de economia que não
+  # queremos desincentivar.
   def self.tokens_spent_today
-    today.sum("input_tokens + output_tokens")
+    today.sum("input_tokens + output_tokens + cache_write_tokens")
   end
 end

@@ -193,7 +193,7 @@ module Agent
     end
 
     test "degradação devolve a última resposta válida com carimbo original" do
-      old = AgentRun.create!(user: @user, kind: :copilot, status: :ok,
+      old = AgentRun.create!(user: @user, kind: :copilot, status: :ok, salesperson: @sp,
                              output: { "resumo" => "Resposta de ontem", "recomendacoes" => [] },
                              created_at: 1.day.ago)
       ENV.delete("ANTHROPIC_API_KEY") # IA desconfigurada
@@ -211,6 +211,118 @@ module Agent
 
       assert result.degraded
       assert_equal "refused", AgentRun.order(:id).last.status
+    end
+
+    # ---- Regressões da revisão cruzada (U7) ---------------------------------
+
+    test "blocos thinking voltam intactos no turno assistant (Sonnet 5 quebraria sem isso)" do
+      fake = FakeClaudeClient.new([
+        FakeClaudeClient.tool_use([ "consultar_meta", {} ], thinking: "raciocínio interno"),
+        FakeClaudeClient.final(VALID_OUTPUT)
+      ])
+
+      orchestrator(fake).run("Explique minha projeção e compare os cenários")
+
+      assistant = fake.requests.last[:messages][-2]
+      assert_equal "assistant", assistant[:role]
+      thinking = assistant[:content].find { |b| b[:type] == "thinking" }
+      assert thinking, "bloco thinking não pode ser descartado no reenvio"
+      assert_equal "sig_teste", thinking[:signature]
+      # E o thinking vem ANTES do tool_use, como na resposta original.
+      assert_equal "thinking", assistant[:content].first[:type]
+    end
+
+    test "gestor no contexto de A não grava card com cliente fora da carteira de A" do
+      admin = users(:one) # irrestrito — a política do usuário não pode ser o limite
+      fora_da_carteira = Partner.create!(external_code: 96_103, name: "Cliente de B")
+      output = VALID_OUTPUT.deep_dup
+      output[:recomendacoes][0][:partner_id] = fora_da_carteira.id
+
+      fake = FakeClaudeClient.new([ FakeClaudeClient.final(output) ])
+      result = Orchestrator.new(user: admin, salesperson: @sp, kind: :copilot, client: fake).run("plano")
+
+      rec = Recommendation.find_by(agent_run: result.agent_run)
+      assert_nil rec.partner_id, "o limite é a carteira do vendedor de CONTEXTO, não a política do usuário"
+    end
+
+    test "card já existente para o cliente no dia não duplica nem estoura o índice único" do
+      Recommendation.create!(salesperson: @sp, partner: @cliente, reference_date: Date.current)
+      output = VALID_OUTPUT.deep_dup
+      output[:recomendacoes][0][:partner_id] = @cliente.id
+
+      fake = FakeClaudeClient.new([ FakeClaudeClient.final(output) ])
+      result = orchestrator(fake).run("plano")
+
+      assert_equal :ok, result.status
+      assert_equal 1, Recommendation.where(salesperson: @sp, partner: @cliente,
+                                           reference_date: Date.current).count
+    end
+
+    test "stop max_tokens vira erro explícito sem retry pago" do
+      fake = FakeClaudeClient.new([ FakeClaudeClient.final("{ trunca", stop_reason: :max_tokens) ])
+      result = orchestrator(fake).run("pergunta")
+
+      assert result.degraded
+      assert_match(/limite de tamanho/, result.aviso)
+      assert_equal 1, fake.requests.size, "não pode haver retry de resposta truncada"
+      assert_equal "error", AgentRun.order(:id).last.status
+    end
+
+    test "ferramenta com contexto de vendedor nega cliente fora da carteira mesmo para usuário irrestrito" do
+      admin = users(:one)
+      fora = Partner.create!(external_code: 96_104, name: "Cliente de Outro")
+      registry = ToolRegistry.new(user: admin, salesperson: @sp)
+
+      result = registry.call("consultar_cliente_360", { "partner_id" => fora.id })
+      assert_not result[:ok]
+      assert_match(/carteira do vendedor em contexto/, result[:error])
+    end
+
+    test "params aninhados com chaves Symbol não quebram preparar_cotacao" do
+      produto = Product.create!(external_code: 96_201, description: "Papel A4", active: true)
+      registry = ToolRegistry.new(user: @user, salesperson: @sp)
+
+      result = registry.call("preparar_cotacao",
+                             { partner_id: @cliente.id,
+                               itens: [ { codigo: produto.external_code, quantidade: 3 } ] })
+      assert result[:ok], result[:error]
+      assert_equal 3.0, result[:data][:itens].first[:quantidade]
+    end
+
+    test "cache write entra no teto diário e no custo" do
+      fake = FakeClaudeClient.new([ FakeClaudeClient.final(VALID_OUTPUT, usage: [ 100, 50, 0, 8_000 ]) ])
+      run = orchestrator(fake).run("oi").agent_run
+
+      assert_equal 8_000, run.cache_write_tokens
+      assert_equal 8_150, AgentRun.tokens_spent_today
+      esperado = Agent::Config.cost_estimate(model: run.model, input_tokens: 100, output_tokens: 50,
+                                             cache_write_tokens: 8_000)
+      assert_in_delta esperado, run.cost_estimate.to_f, 1e-9
+    end
+
+    test "last_valid é por vendedor de contexto — degradação não vaza entre carteiras" do
+      outro_sp = Salesperson.create!(external_code: 96_003, nickname: "SP.B")
+      AgentRun.create!(user: @user, kind: :copilot, status: :ok, salesperson: @sp,
+                       output: { "resumo" => "resumo de A", "recomendacoes" => [] })
+
+      assert_nil AgentRun.last_valid(user: @user, kind: :copilot, salesperson: outro_sp)
+      ENV.delete("ANTHROPIC_API_KEY")
+      result = Orchestrator.new(user: @user, salesperson: outro_sp, client: FakeClaudeClient.new([])).run("oi")
+      assert_nil result.resumo, "não pode exibir o resumo da carteira de A no contexto de B"
+    end
+
+    test "abordagem não sobrescreve card de outro dia (id alucinado)" do
+      antigo = Recommendation.create!(salesperson: @sp, partner: @cliente,
+                                      reference_date: Date.current - 7, approach: "abordagem antiga")
+      fake = FakeClaudeClient.new([
+        FakeClaudeClient.final(VALID_OUTPUT.merge(
+          recomendacoes: [],
+          abordagens: [ { recommendation_id: antigo.id, abordagem: "sobrescrita indevida" } ]
+        ))
+      ])
+
+      orchestrator(fake, kind: :daily_plan).run("gere")
+      assert_equal "abordagem antiga", antigo.reload.approach
     end
 
     # ---- Abordagens do plano do dia (U6) ------------------------------------
