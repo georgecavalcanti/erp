@@ -116,7 +116,11 @@ Aplicação prática: o conjunto de ferramentas registradas simplesmente **não 
 5. Atualizar prioridades somente quando houver mudança relevante nos dados.
 6. Utilizar modelos adequados à complexidade (ex.: `CLAUDE_MODEL_LIGHT` para resumos simples, `CLAUDE_MODEL_DEFAULT` para plano/copiloto).
 7. Armazenar resultados e **não recalcular perguntas idênticas** sem alteração dos dados (cache por digest de pergunta+estado).
-8. Teto diário de tokens (`AGENT_DAILY_TOKEN_BUDGET`) com alerta ao se aproximar.
+8. **Tetos diários de custo em US$** (controle primário): global `AGENT_DAILY_COST_BUDGET_USD`
+   (default US$ 20 — "não passar disso contando tudo") e por vendedor `AGENT_DAILY_COST_PER_SELLER_USD`
+   (default US$ 1, para um vendedor não consumir o orçamento inteiro). Atingido o teto, o agente
+   **degrada** (última resposta válida + aviso) em vez de estourar o orçamento, e registra alerta
+   (grupo IA, doc 09) — com aviso ao cruzar 80%. Backstop absoluto em tokens: `AGENT_DAILY_TOKEN_BUDGET`.
 
 ### Seleção de modelos (decisão, 19/07/2026)
 

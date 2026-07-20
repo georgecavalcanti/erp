@@ -4,10 +4,12 @@ module Agent
   # A chave da Claude é SEPARADA das credenciais do Sankhya — o agente nunca
   # recebe credencial do ERP.
   #
-  #   ANTHROPIC_API_KEY          # obrigatória para o agente funcionar
-  #   CLAUDE_MODEL_LIGHT         # rotina (default claude-haiku-4-5)
-  #   CLAUDE_MODEL_DEFAULT       # complexo (default claude-sonnet-5)
-  #   AGENT_DAILY_TOKEN_BUDGET   # teto diário global de tokens (default 2M)
+  #   ANTHROPIC_API_KEY               # obrigatória para o agente funcionar
+  #   CLAUDE_MODEL_LIGHT              # rotina (default claude-haiku-4-5)
+  #   CLAUDE_MODEL_DEFAULT           # complexo (default claude-sonnet-5)
+  #   AGENT_DAILY_COST_BUDGET_USD     # teto GLOBAL de custo do dia (default US$ 20)
+  #   AGENT_DAILY_COST_PER_SELLER_USD # teto por vendedor/dia (default US$ 1)
+  #   AGENT_DAILY_TOKEN_BUDGET       # backstop absoluto em tokens (default 2M)
   module Config
     # Runtime decidido no doc 06 (19/07/2026): Haiku 4.5 para rotina, escalando
     # para Sonnet 5 nos casos complexos. Opus fica para desenvolvimento.
@@ -25,11 +27,19 @@ module Agent
     def self.light_model = ENV["CLAUDE_MODEL_LIGHT"].presence || DEFAULT_LIGHT_MODEL
     def self.default_model = ENV["CLAUDE_MODEL_DEFAULT"].presence || DEFAULT_MODEL
 
-    # Teto diário GLOBAL de tokens (input+output). Excedido → o agente degrada
-    # (última resposta válida + aviso) em vez de estourar o orçamento.
+    # Controle PRIMÁRIO de gasto: tetos de custo em US$ (o que o gestor entende).
+    #   * global: o total do dia "contando tudo" (copiloto + resumo + abordagens)
+    #     não passa daqui — excedido, o agente degrada para TODOS até amanhã.
+    #   * por vendedor: um único vendedor não consome o orçamento inteiro.
+    # Degradação = última resposta válida + aviso (nunca estoura o orçamento).
+    def self.daily_cost_budget_usd = Float(ENV.fetch("AGENT_DAILY_COST_BUDGET_USD", 20.0))
+    def self.daily_cost_per_seller_usd = Float(ENV.fetch("AGENT_DAILY_COST_PER_SELLER_USD", 1.0))
+
+    # Backstop absoluto em tokens (rede de segurança se o custo estiver mal
+    # estimado, ex.: modelo sem preço na tabela). Raramente é o limite ativo.
     def self.daily_token_budget = Integer(ENV.fetch("AGENT_DAILY_TOKEN_BUDGET", 2_000_000))
 
-    # Aviso (alerta grupo IA, doc 09) ao cruzar esta fração do teto.
+    # Aviso (alerta grupo IA, doc 09) ao cruzar esta fração de um teto.
     def self.budget_warning_ratio = 0.8
 
     def self.enabled? = api_key.present?

@@ -20,6 +20,8 @@ module Agent
     teardown do
       ENV.delete("ANTHROPIC_API_KEY")
       ENV.delete("AGENT_DAILY_TOKEN_BUDGET")
+      ENV.delete("AGENT_DAILY_COST_BUDGET_USD")
+      ENV.delete("AGENT_DAILY_COST_PER_SELLER_USD")
     end
 
     VALID_OUTPUT = {
@@ -179,7 +181,7 @@ module Agent
 
     # ---- Teto diário, refusal e degradação ----------------------------------
 
-    test "teto diário estourado degrada SEM chamar a API e registra alerta" do
+    test "backstop de tokens estourado degrada SEM chamar a API e registra alerta" do
       ENV["AGENT_DAILY_TOKEN_BUDGET"] = "1000"
       AgentRun.create!(user: @user, kind: :copilot, status: :ok, input_tokens: 900, output_tokens: 200)
       fake = FakeClaudeClient.new([]) # qualquer request estouraria o roteiro
@@ -190,6 +192,56 @@ module Agent
       assert_match(/Teto diário/, result.aviso)
       assert_empty fake.requests
       assert Alert.area_ia.severity_high.exists?
+    end
+
+    test "teto GLOBAL de custo (US$) atingido pausa o agente para todos" do
+      ENV["AGENT_DAILY_COST_BUDGET_USD"] = "20"
+      # Já gastos US$ 20 hoje (qualquer vendedor/usuário).
+      AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, cost_estimate: 20.0)
+      fake = FakeClaudeClient.new([])
+
+      result = orchestrator(fake).run("pergunta")
+
+      assert result.degraded
+      assert_match(/US\$ 20/, result.aviso)
+      assert_empty fake.requests, "não pode chamar a API com o teto estourado"
+      assert Alert.area_ia.severity_high.where("title LIKE ?", "%custo%").exists?
+    end
+
+    test "teto POR VENDEDOR bloqueia só o vendedor no limite — outro segue rodando" do
+      ENV["AGENT_DAILY_COST_PER_SELLER_USD"] = "1"
+      # @sp já gastou US$ 1 hoje; um segundo vendedor, nada.
+      outro_sp = Salesperson.create!(external_code: 96_010, nickname: "SP.LIVRE")
+      AgentRun.create!(user: @user, kind: :copilot, status: :ok, salesperson: @sp, cost_estimate: 1.0)
+
+      bloqueado = orchestrator(FakeClaudeClient.new([])).run("pergunta")
+      assert bloqueado.degraded
+      assert_match(/Seu limite diário/, bloqueado.aviso)
+
+      # O outro vendedor não é afetado pelo gasto do @sp.
+      livre = FakeClaudeClient.new([ FakeClaudeClient.final(VALID_OUTPUT) ])
+      resultado = Orchestrator.new(user: @user, salesperson: outro_sp, kind: :copilot, client: livre).run("pergunta")
+      assert_equal :ok, resultado.status
+      assert_equal 1, livre.requests.size
+    end
+
+    test "custo de todos os tipos conta no teto por vendedor (copiloto + resumo + abordagens)" do
+      ENV["AGENT_DAILY_COST_PER_SELLER_USD"] = "1"
+      AgentRun.create!(user: @user, kind: :cockpit_summary, status: :ok, salesperson: @sp, cost_estimate: 0.6)
+      AgentRun.create!(user: @user, kind: :daily_plan, status: :ok, salesperson: @sp, cost_estimate: 0.5)
+
+      result = orchestrator(FakeClaudeClient.new([])).run("pergunta")
+      assert result.degraded, "US$ 1,10 acumulado (resumo + abordagens) já estoura o teto de US$ 1"
+    end
+
+    test "aviso a 80% do teto global de custo registra alerta médio" do
+      ENV["AGENT_DAILY_COST_BUDGET_USD"] = "20"
+      AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, cost_estimate: 16.5) # 82,5%
+      fake = FakeClaudeClient.new([ FakeClaudeClient.final(VALID_OUTPUT) ])
+
+      result = orchestrator(fake).run("pergunta")
+      assert_equal :ok, result.status, "abaixo do teto ainda roda"
+      assert Alert.area_ia.severity_medium.where("title LIKE ?", "%Orçamento diário de custo%").exists?
     end
 
     test "degradação devolve a última resposta válida com carimbo original" do

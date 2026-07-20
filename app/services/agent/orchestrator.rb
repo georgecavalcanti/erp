@@ -99,7 +99,10 @@ module Agent
       question = question.to_s.dup.force_encoding(Encoding::UTF_8).scrub
 
       return degraded("IA não configurada (ANTHROPIC_API_KEY ausente).") unless Config.enabled?
-      return budget_exceeded_result if budget_exceeded?
+
+      if (block = budget_block)
+        return budget_degraded(block)
+      end
 
       warn_budget_if_needed
       execute(question, history, on_event)
@@ -361,27 +364,58 @@ module Agent
       usage[:cache_write] += u.respond_to?(:cache_creation_input_tokens) ? u.cache_creation_input_tokens.to_i : 0
     end
 
-    def budget_exceeded?
-      AgentRun.tokens_spent_today >= Config.daily_token_budget
+    # Qual teto foi atingido (nil = pode rodar). Ordem: custo global ("não passar
+    # de US$ 20 contando tudo") → custo por vendedor (fairness) → backstop de
+    # tokens. A checagem é ANTES da API — a execução que cruza o teto pode
+    # ultrapassá-lo por no máximo o custo de uma resposta (~US$ 0,15).
+    def budget_block
+      return :global_cost if AgentRun.cost_spent_today >= Config.daily_cost_budget_usd
+      if @salesperson && AgentRun.cost_spent_today_for(@salesperson.id) >= Config.daily_cost_per_seller_usd
+        return :seller_cost
+      end
+      return :global_tokens if AgentRun.tokens_spent_today >= Config.daily_token_budget
+
+      nil
     end
 
-    def budget_exceeded_result
-      register_budget_alert(:high, "Teto diário de tokens excedido",
-                            "O agente foi pausado até amanhã (AGENT_DAILY_TOKEN_BUDGET).")
-      degraded("Teto diário de uso da IA atingido — o copiloto volta amanhã.")
+    def budget_degraded(reason)
+      cap = format("%.0f", Config.daily_cost_budget_usd)
+      case reason
+      when :global_cost
+        register_budget_alert(:high, "Teto diário de custo da IA atingido (US$ #{cap})",
+                              "O copiloto foi pausado para todos até amanhã (AGENT_DAILY_COST_BUDGET_USD).")
+        degraded("Teto diário de uso da IA (US$ #{cap}) atingido — o copiloto volta amanhã.")
+      when :seller_cost
+        register_budget_alert(:medium, "#{@salesperson.nickname} atingiu o teto diário do copiloto",
+                              "Limite por vendedor (US$ #{Config.daily_cost_per_seller_usd}/dia) atingido.",
+                              key_suffix: "seller:#{@salesperson.id}")
+        degraded("Seu limite diário do copiloto foi atingido — ele volta amanhã.")
+      when :global_tokens
+        register_budget_alert(:high, "Teto diário de tokens excedido (backstop)",
+                              "O agente foi pausado até amanhã (AGENT_DAILY_TOKEN_BUDGET).")
+        degraded("Teto diário de uso da IA atingido — o copiloto volta amanhã.")
+      end
     end
 
-    # Alerta (grupo IA, doc 09) ao cruzar 80% do teto — uma vez por dia.
+    # Alerta (grupo IA, doc 09) ao cruzar 80% de um teto de custo — uma vez/dia.
     def warn_budget_if_needed
-      spent = AgentRun.tokens_spent_today
-      return if spent < Config.daily_token_budget * Config.budget_warning_ratio
+      global = AgentRun.cost_spent_today
+      if global >= Config.daily_cost_budget_usd * Config.budget_warning_ratio
+        register_budget_alert(:medium, "Orçamento diário de custo em #{(global * 100 / Config.daily_cost_budget_usd).round}%",
+                              "Aproximando do teto global de US$ #{format('%.0f', Config.daily_cost_budget_usd)}/dia.")
+      end
+      return unless @salesperson
 
-      register_budget_alert(:medium, "Orçamento diário de tokens em #{(spent * 100 / Config.daily_token_budget)}%",
-                            "Aproximando do teto AGENT_DAILY_TOKEN_BUDGET (#{Config.daily_token_budget}).")
+      seller = AgentRun.cost_spent_today_for(@salesperson.id)
+      return if seller < Config.daily_cost_per_seller_usd * Config.budget_warning_ratio
+
+      register_budget_alert(:low, "#{@salesperson.nickname}: copiloto em #{(seller * 100 / Config.daily_cost_per_seller_usd).round}% do limite diário",
+                            "Aproximando do teto por vendedor (US$ #{Config.daily_cost_per_seller_usd}/dia).",
+                            key_suffix: "seller_warn:#{@salesperson.id}")
     end
 
-    def register_budget_alert(severity, title, message)
-      key = "agent_budget:#{Date.current.iso8601}:#{severity}"
+    def register_budget_alert(severity, title, message, key_suffix: severity)
+      key = "agent_budget:#{Date.current.iso8601}:#{key_suffix}"
       alert = Alert.open.find_or_initialize_by(key: key)
       alert.assign_attributes(area: :ia, severity: severity, title: title, message: message,
                               first_detected_at: alert.first_detected_at || Time.current,

@@ -36,6 +36,20 @@ class AgentRunTest < ActiveSupport::TestCase
     assert_equal 1_500, AgentRun.tokens_spent_today
   end
 
+  test "cost_spent_today soma o custo do dia (global e por vendedor), ignorando ontem" do
+    sp_a = Salesperson.create!(external_code: 71_001, nickname: "SP.A")
+    sp_b = Salesperson.create!(external_code: 71_002, nickname: "SP.B")
+    AgentRun.create!(user: @user, kind: :copilot, status: :ok, salesperson: sp_a, cost_estimate: 0.30)
+    AgentRun.create!(user: @user, kind: :cockpit_summary, status: :ok, salesperson: sp_a, cost_estimate: 0.20)
+    AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, salesperson: sp_b, cost_estimate: 0.50)
+    AgentRun.create!(user: @user, kind: :copilot, status: :ok, salesperson: sp_a, cost_estimate: 9.0,
+                     created_at: 2.days.ago) # ontem não conta
+
+    assert_in_delta 1.00, AgentRun.cost_spent_today, 1e-9        # 0,30 + 0,20 + 0,50
+    assert_in_delta 0.50, AgentRun.cost_spent_today_for(sp_a.id), 1e-9
+    assert_in_delta 0.50, AgentRun.cost_spent_today_for(sp_b.id), 1e-9
+  end
+
   test "cost_estimate usa a tabela de preços e cobra cache read a 0,1x do input" do
     cost = Agent::Config.cost_estimate(model: "claude-haiku-4-5",
                                        input_tokens: 1_000_000, output_tokens: 100_000,

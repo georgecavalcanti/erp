@@ -20,7 +20,19 @@ class AgentRun < ApplicationRecord
     scope.order(created_at: :desc).first
   end
 
-  # Tokens consumidos HOJE (todos os usuários) — comparado ao teto diário global
+  # Custo (US$) gasto HOJE — base dos tetos de custo (controle primário). Conta
+  # TODOS os tipos de execução (copiloto + resumo + abordagens). cost_estimate
+  # nil (modelo sem preço na tabela) conta como 0 — o backstop de tokens cobre.
+  def self.cost_spent_today
+    today.sum(:cost_estimate).to_f
+  end
+
+  # Custo (US$) gasto HOJE no contexto de UM vendedor — teto por vendedor.
+  def self.cost_spent_today_for(salesperson_id)
+    today.where(salesperson_id: salesperson_id).sum(:cost_estimate).to_f
+  end
+
+  # Tokens consumidos HOJE (todos os usuários) — backstop absoluto
   # (AGENT_DAILY_TOKEN_BUDGET). Escrita de cache conta (é cobrada a 1,25×);
   # cache READ não conta: custa ~0,1× e é a alavanca de economia que não
   # queremos desincentivar.
