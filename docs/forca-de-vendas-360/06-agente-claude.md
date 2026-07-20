@@ -118,6 +118,26 @@ Aplicação prática: o conjunto de ferramentas registradas simplesmente **não 
 7. Armazenar resultados e **não recalcular perguntas idênticas** sem alteração dos dados (cache por digest de pergunta+estado).
 8. Teto diário de tokens (`AGENT_DAILY_TOKEN_BUDGET`) com alerta ao se aproximar.
 
+### Seleção de modelos (decisão, 19/07/2026)
+
+**Premissa que barateia tudo:** a análise cara (recompra, risco, queda, priorização, gap) já é
+**determinística e local** (Sprints 4–7) — roda sem IA, custo zero. O agente **não analisa dado cru**;
+ele só **orquestra ferramentas + sintetiza a recomendação (structured output) + escreve o resumo**.
+É tarefa de orquestração/redação sobre dado pré-digerido → **um modelo pequeno basta**.
+
+- **Runtime em produção do agente: `claude-haiku-4-5`** ($1/$5 por 1M in/out) para plano do dia,
+  resumo e copiloto de rotina. **Escala para `claude-sonnet-5`** ($3/$15; intro $2/$10 até 31/08/2026)
+  só nos casos complexos (`CLAUDE_MODEL_LIGHT` = Haiku, `CLAUDE_MODEL_DEFAULT` = Sonnet). Opus fica
+  para desenvolvimento, não para o runtime.
+- **Alavancas que importam mais que o modelo:** (a) **prompt caching** do contexto institucional/
+  ferramentas (leitura de cache ~0,1× do input — o maior bloco do prompt é reusado em todo
+  vendedor/dia); (b) **Batch API** (−50%) no lote noturno de planos; (c) tiering por complexidade.
+- **Ordem de grandeza** (Haiku + cache): ~$0,01–0,015 por vendedor/dia → dezenas de dólares/mês para a
+  equipe toda. O **fornecedor não é onde está o custo** — as alavancas acima pesam muito mais que trocar
+  Claude por um modelo "mini" de outro fornecedor, que ainda custaria a re-plumbagem da camada de agente
+  e o re-teste do invariante de segurança (tool allowlist + escopo por carteira, doc 07). Preços conferir
+  em `platform.claude.com/docs/en/pricing` antes de fechar orçamento.
+
 ## Resiliência
 
 Se o Claude estiver indisponível: cockpit, indicadores, prioridades e planos já persistidos continuam acessíveis (motores são determinísticos e locais). O copiloto exibe estado degradado com a última resposta válida.
