@@ -145,15 +145,15 @@ Executada em duas partes: **2A** (itens+custo+margem, feita) e **2B** (pedidos c
 
 **Escopo PDF**: score; restrições; plano diário; registro de resultados.
 
-- [ ] `Engines::CrossSell` (doc 05.3)
-- [ ] `Engines::Prioritization`: score com pesos configuráveis, restrições, estratégias adaptativas (doc 05.4) + tabela `priorities`
-- [ ] Configuração de pesos e capacidade diária (tela do gestor)
-- [ ] `Engines::GoalSimulator` (heurística de combinação, doc 05.5)
-- [ ] Página `DailyPlan.vue`: ações com motivo/potencial/canal/abordagem + concluir/adiar/descartar/registrar resultado
-- [ ] Migrations `recommendations` (estrutura) + `influenced_revenues`; registrar resultado vincula venda
-- [ ] Testes: score (pesos), aplicação de restrições, estratégia por posição vs. meta, capacidade respeitada
+- [x] `Engines::CrossSell` (doc 05.3) — categorias de clientes semelhantes (mesma UF + porte por faixa de receita; `segment` do ERP é inútil, 99% "<SEM TIPO PARCEIRO>") ausentes no cliente; potencial = MEDIANA do líquido 12m entre os pares
+- [x] `Engines::Prioritization`: score ponderado (7 fatores, pesos em `PrioritySetting`), restrições que rebaixam (bloqueio/inadimplência/pedido aberto/contato recente/margem), estratégias adaptativas por posição vs. meta (doc 05.4) + tabela `priorities`; consome os sinais da Sprint 6; `persist!` grava priorities (todos) + recommendations (top-N pela capacidade)
+- [x] Configuração de pesos e capacidade diária (tela do gestor) — `Admin::PrioritySettings` (singleton, % normalizada, capacidade, limiares)
+- [x] `Engines::GoalSimulator` (heurística gulosa por valor esperado até cobrir o gap, respeitando capacidade; resumo por origem — doc 05.5)
+- [x] Página `DailyPlan.vue`: ações com motivo/potencial/canal + concluir/adiar/descartar/**registrar resultado**; gera o plano sob demanda; seletor de vendedor p/ gestor
+- [x] Migrations `recommendations` (estrutura, `agent_run_id` p/ Sprint 8) + `influenced_revenues`; registrar resultado cria `InfluencedRevenue` + `Activity(result)` e conclui a recomendação
+- [x] Testes: score/pesos, restrições, estratégia por posição vs. meta, capacidade, **isolamento por carteira** (A não age em recomendação de B), simulador, config do gestor — +25 testes
 
-**Aceite**: critérios MVP 7, 8 e 11 (prioridade com motivo/potencial/restrições; plano respeita capacidade; ação e resultado registrados).
+**Aceite**: ✅ critérios MVP 7, 8 e 11 — prioridade com motivo/potencial/restrições; plano respeita a capacidade; ação e resultado registrados. Verificado no app real (Plano do Dia de ALICE.MELO: 12 ações rankeadas com motivos, potencial, conversão e restrições; #1 = cliente em risco com 15 recompras atrasadas). `bin/ci` verde.
 
 ## Sprint 8 — Agente Claude: ferramentas, orquestração e copiloto
 
