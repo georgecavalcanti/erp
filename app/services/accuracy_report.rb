@@ -12,26 +12,22 @@ class AccuracyReport
   MONTHS_BACK = 12 # janela de meses fechados avaliados (projeções)
   REC_WINDOW_DAYS = 90 # janela recente das recomendações (comportamento atual)
 
-  def initialize(access, as_of: Date.current)
+  CACHE_TTL = 30.minutes # acurácia é de meses FECHADOS (histórica); TTL curto basta
+
+  def initialize(access, as_of: Date.current, cache: Rails.cache)
     @access = access
     @as_of = as_of
     @current_month = as_of.beginning_of_month
     @window = (@current_month - MONTHS_BACK.months)...@current_month # meses fechados
     @seller_ids = access.authorized_salesperson_ids # nil | [] | [ids]
+    @cache = cache
   end
 
+  # Só meses fechados → resultado historicamente estável. Cacheado por escopo/mês
+  # (TTL curto cobre backfills tardios); o dashboard reprojeta a cada 30s, então
+  # evita recomputar a mesma agregação a cada auto-refresh.
   def projections
-    snapshots = early_snapshots
-    return empty_result if snapshots.empty?
-
-    seller_ids = snapshots.keys.map(&:first).uniq
-    realized = realized_by_seller_month(seller_ids)
-    names = Salesperson.where(id: seller_ids).pluck(:id, :nickname).to_h
-
-    pairs = snapshots.map do |(sp_id, month), snap|
-      evaluate_pair(sp_id, month, snap, realized[[ sp_id, month ]].to_f)
-    end
-    aggregate(pairs, names)
+    @cache.fetch(projections_cache_key, expires_in: CACHE_TTL) { compute_projections }
   end
 
   # Acurácia da recompra (doc 05.2): sobre as previsões RESOLVIDAS (confirmadas ou
@@ -84,6 +80,27 @@ class AccuracyReport
   end
 
   private
+
+  def compute_projections
+    snapshots = early_snapshots
+    return empty_result if snapshots.empty?
+
+    seller_ids = snapshots.keys.map(&:first).uniq
+    realized = realized_by_seller_month(seller_ids)
+    names = Salesperson.where(id: seller_ids).pluck(:id, :nickname).to_h
+
+    pairs = snapshots.map do |(sp_id, month), snap|
+      evaluate_pair(sp_id, month, snap, realized[[ sp_id, month ]].to_f)
+    end
+    aggregate(pairs, names)
+  end
+
+  # Chave por ESCOPO (irrestrito × equipe específica) e mês corrente — equipes
+  # diferentes nunca compartilham entrada. O TTL cobre backfills tardios de notas.
+  def projections_cache_key
+    scope = @seller_ids.nil? ? "all" : @seller_ids.sort
+    [ "accuracy/projections", scope, @current_month.iso8601 ]
+  end
 
   # nil (irrestrito) → sem recorte; [] (fail-closed) → nenhum; [ids] → esses.
   def scoped(relation, key: :salesperson_id)

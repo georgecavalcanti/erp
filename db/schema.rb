@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_21_031123) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_21_031849) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -52,8 +52,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_21_031123) do
     t.jsonb "tools_called", default: [], null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.index ["created_at"], name: "index_agent_runs_on_created_at"
     t.index ["kind", "created_at"], name: "index_agent_runs_on_kind_and_created_at"
-    t.index ["salesperson_id"], name: "index_agent_runs_on_salesperson_id"
+    t.index ["salesperson_id", "created_at"], name: "index_agent_runs_on_salesperson_id_and_created_at"
     t.index ["user_id", "created_at"], name: "index_agent_runs_on_user_id_and_created_at"
     t.index ["user_id"], name: "index_agent_runs_on_user_id"
   end
