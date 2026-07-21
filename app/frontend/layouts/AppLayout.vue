@@ -92,6 +92,7 @@ const adminNav = computed(() => {
     items.push({ label: 'Carteiras', href: '/admin/carteiras' })
     items.push({ label: 'Metas', href: '/admin/metas' })
     items.push({ label: 'Priorização', href: '/admin/priorizacao' })
+    items.push({ label: 'Auditoria', href: '/auditoria' })
   }
   if (u.isAdmin) items.push({ label: 'Usuários', href: '/admin/usuarios' })
   return items
