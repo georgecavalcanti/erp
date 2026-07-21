@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_20_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_21_031849) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -52,8 +52,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_100001) do
     t.jsonb "tools_called", default: [], null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.index ["created_at"], name: "index_agent_runs_on_created_at"
     t.index ["kind", "created_at"], name: "index_agent_runs_on_kind_and_created_at"
-    t.index ["salesperson_id"], name: "index_agent_runs_on_salesperson_id"
+    t.index ["salesperson_id", "created_at"], name: "index_agent_runs_on_salesperson_id_and_created_at"
     t.index ["user_id", "created_at"], name: "index_agent_runs_on_user_id_and_created_at"
     t.index ["user_id"], name: "index_agent_runs_on_user_id"
   end
@@ -99,6 +100,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_100001) do
     t.index ["import_batch_id"], name: "index_delinquencies_on_import_batch_id"
     t.index ["salesperson_id"], name: "index_delinquencies_on_salesperson_id"
     t.index ["salesperson_label"], name: "index_delinquencies_on_salesperson_label"
+  end
+
+  create_table "export_logs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.jsonb "filters", default: {}, null: false
+    t.string "format", default: "csv", null: false
+    t.string "kind", null: false
+    t.integer "row_count", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["kind", "created_at"], name: "index_export_logs_on_kind_and_created_at"
+    t.index ["user_id"], name: "index_export_logs_on_user_id"
   end
 
   create_table "goals", force: :cascade do |t|
@@ -691,6 +704,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_100001) do
   add_foreign_key "agent_runs", "users"
   add_foreign_key "delinquencies", "import_batches"
   add_foreign_key "delinquencies", "salespeople"
+  add_foreign_key "export_logs", "users"
   add_foreign_key "goals", "salespeople"
   add_foreign_key "goals", "users", column: "created_by_id"
   add_foreign_key "import_batches", "users"

@@ -50,6 +50,13 @@ class User < ApplicationRecord
     role_gestor_comercial? || role_administrador?
   end
 
+  # Enxerga o Dashboard do Gestor (doc 07/08): coordenador (a equipe) + gestor/
+  # admin/diretoria (tudo). Vendedor/representante NÃO — cada um tem o Cockpit.
+  # O recorte de QUAIS vendedores continua sendo do AccessPolicy (equipe × tudo).
+  def can_view_team?
+    role_coordenador? || unrestricted?
+  end
+
   def display_name
     name.presence || email_address
   end
