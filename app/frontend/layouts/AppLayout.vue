@@ -71,8 +71,15 @@ const nav = computed(() => {
       ...NAV_REST,
     ]
   }
-  // Gestão/diretoria também abrem o Plano do Dia (de um vendedor autorizado).
-  return [{ label: 'Visão geral', href: '/', exact: true }, { label: 'Plano do dia', href: '/plano-do-dia' }, ...copilot, ...NAV_REST]
+  // Gestão/diretoria (e coordenador): Dashboard do gestor + Plano do Dia (de um
+  // vendedor autorizado). O /gestor recorta a equipe pelo perfil (doc 07/08).
+  return [
+    { label: 'Visão geral', href: '/', exact: true },
+    { label: 'Dashboard do gestor', href: '/gestor' },
+    { label: 'Plano do dia', href: '/plano-do-dia' },
+    ...copilot,
+    ...NAV_REST,
+  ]
 })
 
 // Navegação de administração por perfil (doc 07): gestor/admin gerem carteiras e

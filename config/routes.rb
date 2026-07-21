@@ -8,6 +8,9 @@ Rails.application.routes.draw do
   # "Resumo do Claude" no Cockpit (Sprint 8) — gera/atualiza o resumo do agente.
   post "cockpit/resumo", to: "cockpit#resumo",  as: :cockpit_resumo
   get "situacao",      to: "situation#index",   as: :situation
+  # Dashboard do Gestor (Sprint 9) — equipe (meta × realizado × projeção), desvios
+  # e alertas. Escopado pela equipe (coordenador) ou tudo (gestor/admin/diretoria).
+  get "gestor",        to: "manager#index",     as: :manager
   get "vendedores",    to: "salespeople#index", as: :salespeople
   get "parceiros",     to: "partners#index",    as: :partners
   get "carteira",      to: "portfolio#index",   as: :portfolio
