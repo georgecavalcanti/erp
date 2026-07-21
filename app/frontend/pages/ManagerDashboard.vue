@@ -67,6 +67,27 @@ interface ProjectionAccuracy {
   summary: { months_evaluated: number; pairs: number; within_band_percent: number | null; mean_abs_error_percent: number | null }
   by_seller: SellerAccuracy[]
 }
+interface RepurchaseAccuracy {
+  resolved: number
+  confirmed: number
+  missed: number
+  confirmed_percent: number | null
+  value_error_percent: number | null
+}
+interface RecRow {
+  salesperson_id: number
+  name: string
+  total: number
+  useful: number
+  not_useful: number
+  discarded: number
+  useful_percent: number | null
+  influenced_amount: number
+}
+interface RecommendationStats {
+  summary: { total: number; useful: number; not_useful: number; discarded: number; useful_percent: number | null; influenced_total: number }
+  by_seller: RecRow[]
+}
 
 const props = defineProps<{
   month: string
@@ -74,6 +95,9 @@ const props = defineProps<{
   totals: Totals
   alerts: AlertRow[]
   projectionAccuracy: ProjectionAccuracy
+  repurchaseAccuracy: RepurchaseAccuracy
+  recommendationStats: RecommendationStats
+  influencedRevenue: { total: number; this_month: number }
   readonly: boolean
 }>()
 
@@ -99,6 +123,9 @@ function band(row: TeamRow): string {
 }
 
 const acc = computed(() => props.projectionAccuracy)
+const rep = computed(() => props.repurchaseAccuracy)
+const recs = computed(() => props.recommendationStats)
+const influenced = computed(() => props.influencedRevenue)
 function pctOrDash(value: number | null): string {
   return value == null ? '—' : percent(value)
 }
@@ -305,6 +332,95 @@ function pctOrDash(value: number | null): string {
           </table>
         </div>
       </template>
+    </section>
+
+    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <header class="border-b border-slate-200 px-5 py-3">
+        <h3 class="text-sm font-semibold text-slate-700">Acurácia da recompra</h3>
+        <p class="text-xs text-slate-500">
+          Previsões resolvidas (confirmadas × perdidas) e erro de valor das confirmadas (esperado × nota real).
+        </p>
+      </header>
+      <div v-if="rep.resolved === 0" class="px-5 py-10 text-center text-sm text-slate-400">
+        Ainda sem previsões de recompra resolvidas no escopo para avaliar.
+      </div>
+      <div v-else class="grid grid-cols-1 gap-4 p-5 sm:grid-cols-3">
+        <div class="rounded-lg bg-slate-50 p-4">
+          <p class="text-xs font-medium text-slate-500">Confirmadas</p>
+          <p class="mt-1 text-xl font-semibold tabular-nums text-emerald-600">{{ pctOrDash(rep.confirmed_percent) }}</p>
+          <p class="text-xs text-slate-400">{{ rep.confirmed }} de {{ rep.resolved }} resolvidas</p>
+        </div>
+        <div class="rounded-lg bg-slate-50 p-4">
+          <p class="text-xs font-medium text-slate-500">Perdidas</p>
+          <p class="mt-1 text-xl font-semibold tabular-nums text-slate-800">{{ rep.missed }}</p>
+        </div>
+        <div class="rounded-lg bg-slate-50 p-4">
+          <p class="text-xs font-medium text-slate-500">Erro de valor</p>
+          <p class="mt-1 text-xl font-semibold tabular-nums text-slate-800">{{ pctOrDash(rep.value_error_percent) }}</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <header class="border-b border-slate-200 px-5 py-3">
+        <h3 class="text-sm font-semibold text-slate-700">Recomendações &amp; receita influenciada</h3>
+        <p class="text-xs text-slate-500">
+          Recomendações dos últimos 90 dias (úteis × descartadas por vendedor); receita influenciada acumulada.
+        </p>
+      </header>
+
+      <div class="grid grid-cols-2 gap-4 border-b border-slate-100 p-5 sm:grid-cols-4">
+        <div class="rounded-lg bg-slate-50 p-4">
+          <p class="text-xs font-medium text-slate-500">Recomendações</p>
+          <p class="mt-1 text-xl font-semibold tabular-nums text-slate-800">{{ recs.summary.total }}</p>
+        </div>
+        <div class="rounded-lg bg-slate-50 p-4">
+          <p class="text-xs font-medium text-slate-500">Consideradas úteis</p>
+          <p class="mt-1 text-xl font-semibold tabular-nums text-emerald-600">{{ pctOrDash(recs.summary.useful_percent) }}</p>
+          <p class="text-xs text-slate-400">{{ recs.summary.useful }} úteis · {{ recs.summary.not_useful }} não</p>
+        </div>
+        <div class="rounded-lg bg-slate-50 p-4">
+          <p class="text-xs font-medium text-slate-500">Descartadas</p>
+          <p class="mt-1 text-xl font-semibold tabular-nums text-slate-800">{{ recs.summary.discarded }}</p>
+        </div>
+        <div class="rounded-lg bg-slate-50 p-4">
+          <p class="text-xs font-medium text-slate-500">Receita influenciada</p>
+          <p class="mt-1 text-xl font-semibold tabular-nums text-emerald-600">{{ brl(influenced.total) }}</p>
+          <p class="text-xs text-slate-400">{{ brl(influenced.this_month) }} este mês</p>
+        </div>
+      </div>
+
+      <div v-if="recs.by_seller.length === 0" class="px-5 py-10 text-center text-sm text-slate-400">
+        Nenhuma recomendação nos últimos 90 dias no escopo.
+      </div>
+      <div v-else class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th class="px-4 py-3 font-medium">Vendedor</th>
+              <th class="px-3 py-3 text-right font-medium">Recs</th>
+              <th class="px-3 py-3 text-right font-medium">Úteis</th>
+              <th class="px-3 py-3 text-right font-medium">Não úteis</th>
+              <th class="px-3 py-3 text-right font-medium">Descartadas</th>
+              <th class="px-3 py-3 text-right font-medium">% útil</th>
+              <th class="px-3 py-3 text-right font-medium">Receita influenciada</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr v-for="r in recs.by_seller" :key="r.salesperson_id" class="bg-white hover:bg-slate-50">
+              <td class="px-4 py-2.5 font-medium text-slate-700">{{ r.name }}</td>
+              <td class="px-3 py-2.5 text-right tabular-nums text-slate-600">{{ r.total }}</td>
+              <td class="px-3 py-2.5 text-right tabular-nums text-emerald-600">{{ r.useful }}</td>
+              <td class="px-3 py-2.5 text-right tabular-nums text-slate-500">{{ r.not_useful }}</td>
+              <td class="px-3 py-2.5 text-right tabular-nums" :class="r.discarded > 0 ? 'text-amber-600' : 'text-slate-400'">{{ r.discarded }}</td>
+              <td class="px-3 py-2.5 text-right tabular-nums text-slate-600">{{ pctOrDash(r.useful_percent) }}</td>
+              <td class="px-3 py-2.5 text-right tabular-nums" :class="r.influenced_amount > 0 ? 'text-slate-700' : 'text-slate-300'">
+                {{ r.influenced_amount > 0 ? brl(r.influenced_amount) : '—' }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
   </div>
 </template>

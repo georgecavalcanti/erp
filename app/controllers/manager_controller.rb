@@ -9,13 +9,17 @@ class ManagerController < ApplicationController
 
   def index
     report = ManagerReport.new(access)
+    accuracy = AccuracyReport.new(access)
 
     render inertia: "ManagerDashboard", props: {
       month: I18n.l(Date.current, format: "%m/%Y"),
       rows: report.team,
       totals: report.totals,
       alerts: report.alerts,
-      projectionAccuracy: AccuracyReport.new(access).projections,
+      projectionAccuracy: accuracy.projections,
+      repurchaseAccuracy: accuracy.repurchases,
+      recommendationStats: accuracy.recommendations,
+      influencedRevenue: accuracy.influenced_revenue,
       readonly: Current.user.role_diretoria?
     }
   end

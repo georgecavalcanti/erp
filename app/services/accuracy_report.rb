@@ -9,7 +9,8 @@
 #
 # Só meses fechados: o mês corrente ainda não tem realizado final, então não entra.
 class AccuracyReport
-  MONTHS_BACK = 12 # janela de meses fechados avaliados
+  MONTHS_BACK = 12 # janela de meses fechados avaliados (projeções)
+  REC_WINDOW_DAYS = 90 # janela recente das recomendações (comportamento atual)
 
   def initialize(access, as_of: Date.current)
     @access = access
@@ -33,6 +34,55 @@ class AccuracyReport
     aggregate(pairs, names)
   end
 
+  # Acurácia da recompra (doc 05.2): sobre as previsões RESOLVIDAS (confirmadas ou
+  # perdidas), a taxa de confirmação e o erro de valor das confirmadas (valor
+  # esperado × valor real da nota). Escopo por PARCEIRO (a previsão é do cliente).
+  def repurchases
+    resolved = scoped_partners(RepurchasePrediction.where(status: %i[confirmed missed]))
+    confirmed = resolved.status_confirmed.count
+    missed = resolved.status_missed.count
+    total = confirmed + missed
+    errors = resolved.status_confirmed.where.not(expected_value: nil).where.not(actual_value: nil)
+                     .pluck(:expected_value, :actual_value)
+                     .filter_map { |exp, act| act.to_f.zero? ? nil : (exp.to_f - act.to_f).abs / act.to_f * 100 }
+    {
+      resolved: total,
+      confirmed: confirmed,
+      missed: missed,
+      confirmed_percent: total.zero? ? nil : (confirmed.to_f / total * 100).round(1),
+      value_error_percent: mean(errors)
+    }
+  end
+
+  # Recomendações por vendedor na janela recente (90d): úteis × não úteis ×
+  # descartadas + receita influenciada acumulada. Escopo por vendedor.
+  def recommendations
+    window = (@as_of - REC_WINDOW_DAYS.days)..@as_of
+    scope = scoped(Recommendation.where(reference_date: window))
+    totals = scope.group(:salesperson_id).count
+    useful = scope.feedback_useful.group(:salesperson_id).count
+    not_useful = scope.feedback_not_useful.group(:salesperson_id).count
+    discarded = scope.status_discarded.group(:salesperson_id).count
+    influenced = influenced_by_seller
+    names = Salesperson.where(id: totals.keys).pluck(:id, :nickname).to_h
+
+    by_seller = totals.keys.map do |sp_id|
+      build_rec_row(sp_id, names[sp_id], totals[sp_id].to_i, useful[sp_id].to_i,
+                    not_useful[sp_id].to_i, discarded[sp_id].to_i, influenced[sp_id].to_f)
+    end.sort_by { |r| -r[:total] }
+
+    { summary: rec_summary(by_seller), by_seller: by_seller }
+  end
+
+  # Receita influenciada (doc 04) — total da equipe e do mês corrente.
+  def influenced_revenue
+    scope = scoped_influenced(InfluencedRevenue.joins(:recommendation))
+    {
+      total: scope.sum(:amount).to_f.round(2),
+      this_month: scope.where(influenced_revenues: { created_at: @current_month.. }).sum(:amount).to_f.round(2)
+    }
+  end
+
   private
 
   # nil (irrestrito) → sem recorte; [] (fail-closed) → nenhum; [ids] → esses.
@@ -41,6 +91,55 @@ class AccuracyReport
     return relation if @seller_ids.nil?
 
     relation.where(key => @seller_ids)
+  end
+
+  # Escopo por PARCEIRO (recompra): parceiros das carteiras vigentes dos vendedores
+  # autorizados (AccessPolicy). nil = irrestrito; [] = nenhum; [ids] = esses.
+  def scoped_partners(relation)
+    ids = @access.authorized_partner_ids
+    return relation if ids.nil?
+    return relation.none if ids.empty?
+
+    relation.where(partner_id: ids)
+  end
+
+  # Escopo da receita influenciada pelo vendedor da recomendação (tabela juntada).
+  def scoped_influenced(relation)
+    return relation.none if @seller_ids == []
+    return relation if @seller_ids.nil?
+
+    relation.where(recommendations: { salesperson_id: @seller_ids })
+  end
+
+  def influenced_by_seller
+    scoped_influenced(InfluencedRevenue.joins(:recommendation))
+      .group("recommendations.salesperson_id").sum(:amount)
+  end
+
+  def build_rec_row(sp_id, name, total, useful, not_useful, discarded, influenced)
+    {
+      salesperson_id: sp_id, name: name || "—", total: total,
+      useful: useful, not_useful: not_useful, discarded: discarded,
+      useful_percent: rate_pair(useful, useful + not_useful),
+      influenced_amount: influenced.round(2)
+    }
+  end
+
+  def rec_summary(rows)
+    useful = rows.sum { |r| r[:useful] }
+    not_useful = rows.sum { |r| r[:not_useful] }
+    {
+      total: rows.sum { |r| r[:total] },
+      useful: useful, not_useful: not_useful,
+      discarded: rows.sum { |r| r[:discarded] },
+      useful_percent: rate_pair(useful, useful + not_useful),
+      influenced_total: rows.sum { |r| r[:influenced_amount] }.round(2)
+    }
+  end
+
+  # % de `part` sobre `whole` (nil quando não há base — evita 0/0).
+  def rate_pair(part, whole)
+    whole.zero? ? nil : (part.to_f / whole * 100).round(1)
   end
 
   # PRIMEIRA projeção de cada (vendedor, mês, cenário) na janela de meses fechados —
