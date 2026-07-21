@@ -35,6 +35,8 @@ interface RunRow {
 interface SyncRow { at: string; status: string; kind: string | null; errors: number }
 interface AlertRow { id: number; area: string; area_label: string; severity: 'low' | 'medium' | 'high'; title: string; message: string | null; at: string }
 
+interface ExportRow { id: number; kind: string; format: string; row_count: number; user: string | null; at: string }
+
 const props = defineProps<{
   summary: Summary
   byDay: DayRow[]
@@ -43,6 +45,7 @@ const props = defineProps<{
   topTools: ToolRow[]
   recentRuns: RunRow[]
   syncRuns: SyncRow[]
+  exports: ExportRow[]
   alerts: { by_area: { area: string; label: string; count: number }[]; recent: AlertRow[] }
 }>()
 
@@ -102,12 +105,23 @@ const costChart = computed(() => ({
         <h1 class="text-xl font-semibold text-slate-800">Auditoria</h1>
         <p class="text-sm text-slate-500">Gasto do agente Claude (por dia, usuário e vendedor), sincronizações e alertas.</p>
       </div>
-      <span
-        v-if="!summary.agent_enabled"
-        class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-600/20"
-      >
-        Agente desabilitado (sem ANTHROPIC_API_KEY)
-      </span>
+      <div class="flex items-center gap-3">
+        <span
+          v-if="!summary.agent_enabled"
+          class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-600/20"
+        >
+          Agente desabilitado (sem ANTHROPIC_API_KEY)
+        </span>
+        <a
+          href="/auditoria/exportar"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="h-4 w-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+          Exportar CSV
+        </a>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -306,5 +320,32 @@ const costChart = computed(() => ({
         </ul>
       </section>
     </div>
+
+    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <header class="border-b border-slate-200 px-5 py-3"><h3 class="text-sm font-semibold text-slate-700">Exportações registradas</h3></header>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th class="px-4 py-3 font-medium">Quando</th>
+              <th class="px-3 py-3 font-medium">Tipo</th>
+              <th class="px-3 py-3 font-medium">Formato</th>
+              <th class="px-3 py-3 text-right font-medium">Linhas</th>
+              <th class="px-3 py-3 font-medium">Usuário</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr v-for="e in exports" :key="e.id" class="bg-white hover:bg-slate-50">
+              <td class="whitespace-nowrap px-4 py-2.5 text-xs text-slate-500">{{ dateBR(e.at) }}</td>
+              <td class="px-3 py-2.5 text-slate-700">{{ e.kind }}</td>
+              <td class="px-3 py-2.5 uppercase text-xs text-slate-500">{{ e.format }}</td>
+              <td class="px-3 py-2.5 text-right tabular-nums text-slate-500">{{ e.row_count }}</td>
+              <td class="px-3 py-2.5 text-xs text-slate-600">{{ e.user ?? '—' }}</td>
+            </tr>
+            <tr v-if="exports.length === 0"><td colspan="5" class="px-4 py-8 text-center text-slate-400">Nenhuma exportação registrada ainda.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </div>
 </template>

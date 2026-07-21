@@ -2,7 +2,9 @@
 # Acesso: gestor (leitura) + admin (matriz doc 07). Coordenador e diretoria NÃO.
 # Ambos os perfis são irrestritos, então a auditoria é GLOBAL (sem recorte de equipe).
 class AuditController < ApplicationController
-  before_action :require_auditor
+  include Exportable
+
+  before_action :require_auditor # gestor + admin já é o perfil de exportação (doc 09)
 
   def index
     report = AuditReport.new
@@ -15,8 +17,18 @@ class AuditController < ApplicationController
       topTools: report.top_tools,
       recentRuns: report.recent_runs,
       syncRuns: report.sync_runs,
+      exports: report.recent_exports,
       alerts: report.alerts
     }
+  end
+
+  # CSV do gasto do agente por vendedor (custo/tokens da janela + hoje × teto).
+  def export
+    rows = AuditReport.new.by_seller
+    headers = [ "Vendedor", "Execuções", "Custo 30d (US$)", "Tokens", "Custo hoje (US$)", "Teto diário (US$)" ]
+    data = rows.map { |r| [ r[:salesperson], r[:calls], r[:cost], r[:tokens], r[:today_cost], r[:daily_cap] ] }
+    send_registered_csv(kind: "custo_agente", filename: "custo-agente-#{Date.current.iso8601}.csv",
+                        headers: headers, rows: data)
   end
 
   private

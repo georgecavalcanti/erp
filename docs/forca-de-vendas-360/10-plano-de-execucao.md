@@ -177,7 +177,7 @@ Executada em duas partes: **2A** (itens+custo+margem, feita) e **2B** (pedidos c
 - [x] `ManagerDashboard.vue`: equipe (meta × realizado × projeção), desvios, alertas (doc 08)
 - [x] Métricas de acurácia: projeções (previsto × realizado) e recompras (confirmadas/perdidas)
 - [x] Recomendações: úteis × descartadas por vendedor; receita influenciada (via `influenced_revenues`)
-- [ ] Tela de auditoria (admin): `agent_runs` (custo, tokens, ferramentas), `sync_runs`, `alerts`
+- [x] Tela de auditoria (admin): `agent_runs` (custo, tokens, ferramentas), `sync_runs`, `alerts`
 - [ ] Exportações controladas e registradas (doc 09)
 - [ ] Revisão de performance (índices, N+1, caching de agregações)
 - [ ] Testes: agregações do gestor, cálculo de receita influenciada

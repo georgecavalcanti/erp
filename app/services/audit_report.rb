@@ -100,6 +100,14 @@ class AuditReport
     end
   end
 
+  # Exportações registradas (doc 09) — a trilha de quem exportou o quê e quando.
+  def recent_exports(limit: 15)
+    ExportLog.includes(:user).recent.limit(limit).map do |log|
+      { id: log.id, kind: log.kind, format: log.format, row_count: log.row_count,
+        user: log.user&.display_name, at: log.created_at.iso8601 }
+    end
+  end
+
   # Alertas abertos por área + os mais recentes.
   def alerts(limit: 15)
     open = Alert.open

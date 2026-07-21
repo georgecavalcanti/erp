@@ -98,6 +98,7 @@ const props = defineProps<{
   repurchaseAccuracy: RepurchaseAccuracy
   recommendationStats: RecommendationStats
   influencedRevenue: { total: number; this_month: number }
+  canExport: boolean
   readonly: boolean
 }>()
 
@@ -142,12 +143,24 @@ function pctOrDash(value: number | null): string {
           Equipe: meta, realizado e projeção do mês ({{ month }}), com desvios e alertas.
         </p>
       </div>
-      <span
-        v-if="readonly"
-        class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-400/20"
-      >
-        Somente leitura (diretoria)
-      </span>
+      <div class="flex items-center gap-3">
+        <a
+          v-if="canExport"
+          href="/gestor/exportar"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="h-4 w-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+          Exportar CSV
+        </a>
+        <span
+          v-if="readonly"
+          class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-400/20"
+        >
+          Somente leitura (diretoria)
+        </span>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

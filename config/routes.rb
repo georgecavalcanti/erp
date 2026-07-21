@@ -10,10 +10,13 @@ Rails.application.routes.draw do
   get "situacao",      to: "situation#index",   as: :situation
   # Dashboard do Gestor (Sprint 9) — equipe (meta × realizado × projeção), desvios
   # e alertas. Escopado pela equipe (coordenador) ou tudo (gestor/admin/diretoria).
-  get "gestor",        to: "manager#index",     as: :manager
+  get "gestor",          to: "manager#index",  as: :manager
+  # Exportações registradas (Sprint 9, doc 09) — só gestor+ (perfil de exportação).
+  get "gestor/exportar", to: "manager#export", as: :manager_export
   # Auditoria (Sprint 9) — gasto do agente (dia/usuário/vendedor), syncs e alertas.
   # Só gestor comercial + administrador (matriz doc 07).
-  get "auditoria",     to: "audit#index",       as: :audit
+  get "auditoria",          to: "audit#index",  as: :audit
+  get "auditoria/exportar", to: "audit#export", as: :audit_export
   get "vendedores",    to: "salespeople#index", as: :salespeople
   get "parceiros",     to: "partners#index",    as: :partners
   get "carteira",      to: "portfolio#index",   as: :portfolio
