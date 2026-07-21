@@ -15,6 +15,7 @@ class ManagerController < ApplicationController
       rows: report.team,
       totals: report.totals,
       alerts: report.alerts,
+      projectionAccuracy: AccuracyReport.new(access).projections,
       readonly: Current.user.role_diretoria?
     }
   end

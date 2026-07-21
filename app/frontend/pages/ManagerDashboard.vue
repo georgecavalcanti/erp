@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/layouts/AppLayout.vue'
 import KpiCard from '@/components/KpiCard.vue'
-import { brl, percent, dateBR } from '@/lib/format'
+import { brl, percent, dateBR, monthLabel } from '@/lib/format'
 import { matchesQuery } from '@/lib/search'
 
 defineOptions({ layout: AppLayout })
@@ -46,12 +46,34 @@ interface AlertRow {
   message: string | null
   at: string
 }
+interface AccuracyPair {
+  month: string
+  predicted: number | null
+  low: number | null
+  high: number | null
+  realized: number
+  hit: boolean | null
+  error_percent: number | null
+}
+interface SellerAccuracy {
+  salesperson_id: number
+  name: string
+  pairs: number
+  within_band_percent: number | null
+  mean_abs_error_percent: number | null
+  last: AccuracyPair | null
+}
+interface ProjectionAccuracy {
+  summary: { months_evaluated: number; pairs: number; within_band_percent: number | null; mean_abs_error_percent: number | null }
+  by_seller: SellerAccuracy[]
+}
 
 const props = defineProps<{
   month: string
   rows: TeamRow[]
   totals: Totals
   alerts: AlertRow[]
+  projectionAccuracy: ProjectionAccuracy
   readonly: boolean
 }>()
 
@@ -74,6 +96,11 @@ const SEVERITY: Record<AlertRow['severity'], string> = {
 function band(row: TeamRow): string {
   if (row.projected_low == null || row.projected_high == null) return '—'
   return `${brl(row.projected_low)} – ${brl(row.projected_high)}`
+}
+
+const acc = computed(() => props.projectionAccuracy)
+function pctOrDash(value: number | null): string {
+  return value == null ? '—' : percent(value)
 }
 </script>
 
@@ -214,6 +241,70 @@ function band(row: TeamRow): string {
           </tbody>
         </table>
       </div>
+    </section>
+
+    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <header class="border-b border-slate-200 px-5 py-3">
+        <h3 class="text-sm font-semibold text-slate-700">Acurácia das projeções</h3>
+        <p class="text-xs text-slate-500">
+          Snapshot do início do mês × realizado real, em meses fechados. "Dentro da faixa" = realizado entre os cenários conservador e potencial.
+        </p>
+      </header>
+
+      <div v-if="acc.summary.pairs === 0" class="px-5 py-10 text-center text-sm text-slate-400">
+        Ainda sem meses fechados com projeção persistida para avaliar. A acurácia aparece quando o primeiro mês fechar.
+      </div>
+
+      <template v-else>
+        <div class="grid grid-cols-1 gap-4 border-b border-slate-100 p-5 sm:grid-cols-3">
+          <div class="rounded-lg bg-slate-50 p-4">
+            <p class="text-xs font-medium text-slate-500">Dentro da faixa</p>
+            <p class="mt-1 text-xl font-semibold tabular-nums text-emerald-600">{{ pctOrDash(acc.summary.within_band_percent) }}</p>
+          </div>
+          <div class="rounded-lg bg-slate-50 p-4">
+            <p class="text-xs font-medium text-slate-500">Erro médio (provável)</p>
+            <p class="mt-1 text-xl font-semibold tabular-nums text-slate-800">{{ pctOrDash(acc.summary.mean_abs_error_percent) }}</p>
+          </div>
+          <div class="rounded-lg bg-slate-50 p-4">
+            <p class="text-xs font-medium text-slate-500">Avaliações</p>
+            <p class="mt-1 text-xl font-semibold tabular-nums text-slate-800">{{ acc.summary.pairs }}</p>
+            <p class="text-xs text-slate-400">{{ acc.summary.months_evaluated }} mês(es) fechado(s)</p>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th class="px-4 py-3 font-medium">Vendedor</th>
+                <th class="px-3 py-3 text-right font-medium">Meses</th>
+                <th class="px-3 py-3 text-right font-medium">Dentro da faixa</th>
+                <th class="px-3 py-3 text-right font-medium">Erro médio</th>
+                <th class="px-3 py-3 text-right font-medium">Último mês (previsto → realizado)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="s in acc.by_seller" :key="s.salesperson_id" class="bg-white hover:bg-slate-50">
+                <td class="px-4 py-2.5 font-medium text-slate-700">{{ s.name }}</td>
+                <td class="px-3 py-2.5 text-right tabular-nums text-slate-500">{{ s.pairs }}</td>
+                <td class="px-3 py-2.5 text-right tabular-nums" :class="s.within_band_percent != null && s.within_band_percent >= 80 ? 'text-emerald-600' : 'text-slate-600'">
+                  {{ pctOrDash(s.within_band_percent) }}
+                </td>
+                <td class="px-3 py-2.5 text-right tabular-nums text-slate-600">{{ pctOrDash(s.mean_abs_error_percent) }}</td>
+                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs tabular-nums text-slate-500">
+                  <template v-if="s.last">
+                    <span class="text-slate-400">{{ monthLabel(s.last.month) }}:</span>
+                    {{ s.last.predicted != null ? brl(s.last.predicted) : '—' }} → {{ brl(s.last.realized) }}
+                    <span v-if="s.last.hit === true" class="ml-1 text-emerald-600">✓</span>
+                    <span v-else-if="s.last.hit === false" class="ml-1 text-red-500">✗</span>
+                  </template>
+                  <span v-else>—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </section>
   </div>
 </template>
