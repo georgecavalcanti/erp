@@ -1,0 +1,67 @@
+require "test_helper"
+
+# Auditoria do agente (Sprint 8): degradação por última resposta válida e
+# contabilidade do teto diário de tokens.
+class AgentRunTest < ActiveSupport::TestCase
+  setup do
+    @user = users(:one)
+  end
+
+  test "last_valid retorna a resposta ok mais recente com output, ignorando erros e schemas inválidos" do
+    old_valid = AgentRun.create!(user: @user, kind: :copilot, status: :ok,
+                                 output: { "resumo" => "antigo" }, created_at: 2.hours.ago)
+    AgentRun.create!(user: @user, kind: :copilot, status: :error, output: nil)
+    AgentRun.create!(user: @user, kind: :copilot, status: :invalid_schema, output: { "quebrado" => true })
+    AgentRun.create!(user: @user, kind: :cockpit_summary, status: :ok, output: { "resumo" => "outro tipo" })
+
+    assert_equal old_valid, AgentRun.last_valid(user: @user, kind: :copilot)
+
+    newer = AgentRun.create!(user: @user, kind: :copilot, status: :ok, output: { "resumo" => "novo" })
+    assert_equal newer, AgentRun.last_valid(user: @user, kind: :copilot)
+  end
+
+  test "last_valid é por usuário — não vaza resposta de outro" do
+    AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, output: { "resumo" => "do outro" })
+    assert_nil AgentRun.last_valid(user: @user, kind: :copilot)
+  end
+
+  test "tokens_spent_today soma input+output só do dia e ignora cache read" do
+    AgentRun.create!(user: @user, kind: :copilot, status: :ok,
+                     input_tokens: 1_000, output_tokens: 200, cache_read_tokens: 50_000)
+    AgentRun.create!(user: users(:two), kind: :daily_plan, status: :error,
+                     input_tokens: 300, output_tokens: 0)
+    AgentRun.create!(user: @user, kind: :copilot, status: :ok,
+                     input_tokens: 9_999, output_tokens: 1, created_at: 2.days.ago)
+
+    assert_equal 1_500, AgentRun.tokens_spent_today
+  end
+
+  test "cost_spent_this_month (global) e cost_spent_today_for (por vendedor) somam as janelas certas" do
+    sp_a = Salesperson.create!(external_code: 71_001, nickname: "SP.A")
+    sp_b = Salesperson.create!(external_code: 71_002, nickname: "SP.B")
+    # Mês/dia correntes (todos entram no global mensal E no dia): 0,30+0,20 (sp_a) + 0,50 (sp_b).
+    AgentRun.create!(user: @user, kind: :copilot, status: :ok, salesperson: sp_a, cost_estimate: 0.30)
+    AgentRun.create!(user: @user, kind: :cockpit_summary, status: :ok, salesperson: sp_a, cost_estimate: 0.20)
+    AgentRun.create!(user: users(:two), kind: :copilot, status: :ok, salesperson: sp_b, cost_estimate: 0.50)
+    # Mês passado: não conta no global mensal (nem no dia).
+    AgentRun.create!(user: @user, kind: :copilot, status: :ok, salesperson: sp_a, cost_estimate: 9.0,
+                     created_at: Time.current.beginning_of_month - 1.day)
+
+    assert_in_delta 1.00, AgentRun.cost_spent_this_month, 1e-9   # 0,30 + 0,20 + 0,50 (mês passado fora)
+    assert_in_delta 0.50, AgentRun.cost_spent_today_for(sp_a.id), 1e-9 # 0,30 + 0,20
+    assert_in_delta 0.50, AgentRun.cost_spent_today_for(sp_b.id), 1e-9
+  end
+
+  test "cost_estimate usa a tabela de preços e cobra cache read a 0,1x do input" do
+    cost = Agent::Config.cost_estimate(model: "claude-haiku-4-5",
+                                       input_tokens: 1_000_000, output_tokens: 100_000,
+                                       cache_read_tokens: 1_000_000)
+    # 1M in × $1 + 100k out × $5 + 1M cache × $0,10 = 1,0 + 0,5 + 0,1
+    assert_in_delta 1.6, cost, 0.000001
+
+    # Modelo fora da tabela → fallback conservador (o mais caro), NUNCA nil — senão
+    # o custo somaria 0 e furaria os tetos de custo silenciosamente.
+    fallback = Agent::Config.cost_estimate(model: "modelo-novo-sem-preco", input_tokens: 1_000_000, output_tokens: 0)
+    assert_equal 3.0, fallback # input do fallback = US$ 3/1M (o mais caro do runtime)
+  end
+end

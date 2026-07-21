@@ -51,4 +51,38 @@ class CockpitControllerTest < ActionDispatch::IntegrationTest
     get root_path
     assert_inertia_component "Dashboard"
   end
+
+  # ---- Resumo do Claude (Sprint 8) ------------------------------------------
+
+  test "cockpit expõe a última resposta válida do resumo do Claude" do
+    AgentRun.create!(user: @vend, kind: :cockpit_summary, status: :ok, salesperson: @sp,
+                     output: { "resumo" => "Você está 10% abaixo do esperado.", "recomendacoes" => [] })
+    sign_in_as(@vend)
+    get cockpit_path
+
+    assert_equal "Você está 10% abaixo do esperado.", inertia.props[:claudeSummary][:resumo]
+    assert inertia.props[:claudeSummary][:generated_at].present?
+    assert_equal false, inertia.props[:agentEnabled]
+  end
+
+  test "gerar resumo sem IA degrada com aviso e o cockpit segue de pé (MVP 13)" do
+    sign_in_as(@vend)
+    post cockpit_resumo_path
+
+    assert_redirected_to cockpit_path
+    assert_match(/IA não configurada/, flash[:alert])
+
+    get cockpit_path
+    assert_inertia_component "Cockpit" # consulta não é impedida pela IA indisponível
+    assert inertia.props[:projection].present?
+  end
+
+  test "gerar resumo sem vendedor vinculado avisa" do
+    admin = User.create!(email_address: "a2@x.com", password: "secret123", role: :administrador)
+    sign_in_as(admin)
+    post cockpit_resumo_path
+
+    assert_redirected_to cockpit_path
+    assert_match(/Sem vendedor vinculado/, flash[:alert])
+  end
 end

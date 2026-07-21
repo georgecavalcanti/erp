@@ -159,16 +159,16 @@ Executada em duas partes: **2A** (itens+custo+margem, feita) e **2B** (pedidos c
 
 **Escopo PDF**: ferramentas Claude; orquestração; saídas estruturadas; copiloto.
 
-- [ ] `Agent::ToolRegistry` + as ~24 ferramentas dos 3 grupos com JSON Schema (doc 06) — **escrever os contratos JSON como artefato desta sprint**
-- [ ] `Agent::ContextBuilder` (contexto institucional cacheável + posição do vendedor)
-- [ ] `Agent::Orchestrator`: loop de tool use, structured output do formato de recomendação, persistência em `recommendations` + `agent_runs`
-- [ ] Prompt caching + seleção de modelo por complexidade + teto diário de tokens (doc 06, custos)
-- [ ] Página `Copilot.vue` com streaming e cards de recomendação (aceitar/adiar/descartar)
-- [ ] "Resumo do Claude" no Cockpit e abordagens no Plano do dia gerados pelo agente
-- [ ] Degradação sem IA (última resposta válida + aviso)
-- [ ] Testes: uso correto das ferramentas (mock da API), dados conflitantes, ausência de dados (não inventa), esquema inválido (retry + status), ações não autorizadas inexistentes no registry
+- [x] `Agent::ToolRegistry` + as 24 ferramentas dos 3 grupos com JSON Schema (doc 06) — contratos em [`contratos-ferramentas.md`](contratos-ferramentas.md)
+- [x] `Agent::ContextBuilder` (contexto institucional cacheável + posição do vendedor)
+- [x] `Agent::Orchestrator`: loop de tool use, structured output do formato de recomendação, persistência em `recommendations` + `agent_runs`
+- [x] Prompt caching + seleção de modelo por complexidade (Haiku/Sonnet) + teto diário de tokens com alerta a 80% (doc 06, custos)
+- [x] Página `Copilot.vue` com streaming (SSE: progresso das ferramentas + resultado) e cards de recomendação (aceitar/adiar/descartar)
+- [x] "Resumo do Claude" no Cockpit e abordagens no Plano do dia gerados pelo agente
+- [x] Degradação sem IA (última resposta válida + carimbo + aviso)
+- [x] Testes: uso correto das ferramentas (mock da API), dados conflitantes, ausência de dados (não inventa), esquema inválido (retry + status), ações não autorizadas inexistentes no registry
 
-**Aceite**: critérios MVP 9 e 13 (só ferramentas autorizadas, não inventa dados; indisponibilidade da IA não impede consulta). Os 5 casos de uso do copiloto (doc 06) funcionam.
+**Aceite**: ✅ critérios MVP 9 e 13. Allowlist fail-closed + escopo por carteira em toda ferramenta e IA indisponível degradando com última resposta válida — verificados por teste (294) **e no app real** contra a Claude API (20/07/2026, vendedor ALICE.MELO). Os **5 casos de uso do copiloto** (doc 06) rodaram de ponta a ponta com structured output: (1) plano do dia — Haiku, `priorizar_carteira`+`consultar_resultado_vendedor`; (2) cobrir o gap — Sonnet 5, 5 ferramentas, **declarou honestamente** que a carteira não cobre o gap em vez de inventar oportunidades; (3) preparar conversa — Haiku, 7 ferramentas; (4) onde perco margem — Sonnet 5, 9 ferramentas (chegou a flagar o SKU "RESMA DE PAPEL A4 (NAO VENDER)" com receita indevida); (5) explicar projeção — Sonnet 5, 6 ferramentas. Tiering Haiku↔Sonnet correto por complexidade; prompt caching ativo (cache_read até 34k tokens); **custo total US$ 0,43 nos 5 casos** (rotina real via Haiku fica em centavos). Invariantes reconfirmados com dados reais: 0 cards fora da carteira; isolamento cruzado bloqueado ("cliente fora da carteira do vendedor em contexto"); 0 escritas no ERP.
 
 ## Sprint 9 — Dashboard do gestor, auditoria, acurácia e receita influenciada
 

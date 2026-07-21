@@ -19,11 +19,51 @@ class DailyPlanController < ApplicationController
       channels: Recommendation::CHANNELS.keys,
       recommendations: recs.map { |r| serialize(r) },
       simulator: simulator_summary(sp),
-      salespeople: selectable_salespeople
+      salespeople: selectable_salespeople,
+      agentEnabled: Agent::Config.enabled?
     }
   end
 
+  # Abordagens dos cards geradas pelo agente (Sprint 8): UMA execução para os
+  # cards abertos sem abordagem — a aplicação fornece a lista (id + contexto);
+  # o agente redige e a persistência revalida o dono de cada card.
+  def abordagens
+    # Diretoria é somente leitura (doc 07) — não dispara o agente nem escreve
+    # abordagens (mesmo bloqueio do copiloto; revisão cruzada Sprint 8).
+    if Current.user.role_diretoria?
+      return redirect_to daily_plan_path, alert: "Perfil diretoria é somente leitura."
+    end
+
+    sp = resolve_salesperson
+    return redirect_to daily_plan_path, alert: "Sem vendedor no escopo." unless sp
+
+    recs = Recommendation.for_date(Date.current).where(salesperson_id: sp.id, status: :pending, approach: nil)
+                         .includes(:partner).ranked.limit(PrioritySetting.current.daily_capacity)
+    if recs.none?
+      return redirect_to daily_plan_path(salesperson_id: sp.id), notice: "Todos os cards já têm abordagem."
+    end
+
+    result = Agent::Orchestrator.new(user: Current.user, salesperson: sp, kind: :daily_plan)
+                                .run(approaches_prompt(recs))
+    if result.degraded
+      redirect_to daily_plan_path(salesperson_id: sp.id), alert: result.aviso
+    else
+      redirect_to daily_plan_path(salesperson_id: sp.id), notice: "Abordagens geradas pelo Claude."
+    end
+  end
+
   private
+
+  def approaches_prompt(recs)
+    lines = recs.map do |r|
+      "- recommendation_id #{r.id} | cliente: #{r.partner&.name} (partner_id #{r.partner_id}) | " \
+        "ação: #{r.next_action} | diagnóstico: #{r.diagnosis}"
+    end
+    "Para cada recomendação do meu plano de hoje listada abaixo, escreva a abordagem comercial " \
+      "(2 a 3 frases: como abrir a conversa, o que oferecer e o que perguntar). Consulte as ferramentas " \
+      "quando precisar de contexto do cliente. Responda com abordagens: [{recommendation_id, abordagem}] " \
+      "para CADA item da lista, e recomendacoes: [].\n#{lines.join("\n")}"
+  end
 
   # Resolve o vendedor do plano respeitando o escopo (nil=irrestrito, []=nenhum).
   def resolve_salesperson
@@ -69,9 +109,18 @@ class DailyPlanController < ApplicationController
       id: rec.id, partner_id: rec.partner_id, partner: rec.partner&.name,
       position: rec.priority&.position, score: rec.priority&.score&.to_f,
       diagnosis: rec.diagnosis, next_action: rec.next_action, channel: rec.channel,
-      potential: rec.potential_impact["revenue"].to_f, confidence: rec.confidence,
-      reasons: rec.evidences, restrictions: rec.restrictions, status: rec.status,
-      influenced: rec.influenced_revenues.sum(:amount).to_f
+      # Cards do agente usam "receita" (schema PT-BR); os determinísticos, "revenue".
+      potential: (rec.potential_impact["revenue"] || rec.potential_impact["receita"]).to_f,
+      confidence: rec.confidence,
+      reasons: tags(rec.evidences), restrictions: tags(rec.restrictions), status: rec.status,
+      influenced: rec.influenced_revenues.sum(:amount).to_f,
+      approach: rec.approach
     }
+  end
+
+  # Normaliza para o shape {key,label} que a tela espera: cards determinísticos
+  # gravam tags; cards do agente gravam strings (evidências/restrições textuais).
+  def tags(list)
+    Array(list).map { |t| t.is_a?(Hash) ? t : { key: t.to_s, label: t.to_s } }
   end
 end
