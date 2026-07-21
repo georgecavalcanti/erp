@@ -196,7 +196,9 @@ class AccuracyReport
     likely = snap["likely"]
     high = snap["potential"]
     hit = (low && high) ? actual.between?(low, high) : nil
-    error = (likely && !actual.zero?) ? ((likely - actual).abs / actual * 100).round(1) : nil
+    # Divide pelo |realizado|: o realizado é líquido (venda − devolução) e pode ser
+    # negativo num mês; sem o abs o erro percentual sairia negativo (sem sentido).
+    error = (likely && !actual.zero?) ? ((likely - actual).abs / actual.abs * 100).round(1) : nil
     {
       salesperson_id: sp_id, month: month.strftime("%Y-%m"),
       predicted: likely&.round(2), low: low&.round(2), high: high&.round(2),

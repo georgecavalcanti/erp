@@ -179,8 +179,8 @@ Executada em duas partes: **2A** (itens+custo+margem, feita) e **2B** (pedidos c
 - [x] Recomendações: úteis × descartadas por vendedor; receita influenciada (via `influenced_revenues`)
 - [x] Tela de auditoria (admin): `agent_runs` (custo, tokens, ferramentas), `sync_runs`, `alerts`
 - [x] Exportações controladas e registradas (doc 09)
-- [ ] Revisão de performance (índices, N+1, caching de agregações)
-- [ ] Testes: agregações do gestor, cálculo de receita influenciada
+- [x] Revisão de performance (índices, N+1, caching de agregações)
+- [x] Testes: agregações do gestor, cálculo de receita influenciada
 
 **Aceite**: critério MVP 10 (gestor acompanha equipe e desvios); custo do agente visível por dia/usuário.
 

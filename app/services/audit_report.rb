@@ -8,7 +8,9 @@ class AuditReport
 
   def initialize(as_of: Date.current)
     @as_of = as_of
-    @window_start = (as_of - DAYS_BACK.days).beginning_of_day
+    # Início da janela no fuso de NEGÓCIO (BR), casando o agrupamento por dia de
+    # negócio do #by_day (created_at é UTC; a meia-noite BR != meia-noite UTC).
+    @window_start = (as_of - DAYS_BACK.days).in_time_zone(BUSINESS_TZ).beginning_of_day
   end
 
   # Cabeçalho: gasto do MÊS × teto, gasto/tokens de HOJE × backstops, saúde geral.

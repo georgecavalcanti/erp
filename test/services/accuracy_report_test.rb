@@ -78,6 +78,21 @@ class AccuracyReportTest < ActiveSupport::TestCase
     assert_empty result[:by_seller]
   end
 
+  # Realizado líquido pode ser negativo (devolução > venda no mês): o erro % deve
+  # sair POSITIVO (divide por |realizado|). Escopo próprio p/ não mexer no resumo.
+  test "erro percentual é positivo mesmo com realizado líquido negativo" do
+    sp = Salesperson.create!(external_code: 9599, nickname: "NEG")
+    proj(sp, Date.new(2026, 6, 2), cons: 80_000, likely: 100_000, pot: 120_000, target: 100_000)
+    invoice(sp, 9691, 20_000, :sale, Date.new(2026, 6, 10))
+    invoice(sp, 9692, 50_000, :return, Date.new(2026, 6, 12)) # realizado junho = -30.000
+    coord = User.create!(email_address: "neg@x.com", password: "secret123", role: :coordenador)
+    User.create!(email_address: "negv@x.com", password: "secret123", role: :vendedor, salesperson: sp, manager: coord)
+
+    neg = report(coord).projections[:by_seller].find { |s| s[:name] == "NEG" }
+    assert_equal(-30_000.0, neg[:last][:realized])
+    assert_equal 433.3, neg[:last][:error_percent] # |100k -(-30k)| / |-30k|
+  end
+
   private
 
   def report(user)
